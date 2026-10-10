@@ -11,7 +11,10 @@ PUBLIC_SOURCE_FIELDS={'origin','file','cad_id','cad_ids','layer','method','geome
     'area_m2','boundary_status','constituent_labels','space_usage','courtyard_evidence_ids',
     'nosing_count','tread_pitch_m','riser_m','risers_per_flight','riser_evidence','flight_direction_verified',
     'central_gap_m','central_gap_source','detail_pitch_conflict','thickness_source','core_boundary_cad_id',
-    'label_cad_id','car_dimensions_source','void_guard_m','coincident_profile_ids','flight_height_status','structural_section_candidates'}
+    'label_cad_id','car_dimensions_source','void_guard_m','coincident_profile_ids','flight_height_status','structural_section_candidates',
+    'assembly_status','parameter_file','dimension_verified','provisional_opening','architectural_opening_polygons','entrance_status',
+    'architectural_wall_profiles','joint_resolution','joint_removed_plan_area_m2','joint_precision_grid_m','untrimmed_storey_height_m',
+    'column_face_gap_repairs','column_gap_method'}
 
 def main():
     root=Path(__file__).resolve().parents[1]
@@ -21,6 +24,8 @@ def main():
     model.provenance={'publication':'github_pages','source_units':'mm','coordinate_units':'m',
         'review_status':'unverified','relative_floor_levels':[f.elevation for f in model.floors],
         'modelling_version':model.provenance.get('modelling_version',1),
+        'assembly_parameters':model.provenance.get('assembly_parameters',{}),'assembly_report':model.provenance.get('assembly_report',{}),
+        'joint_report':model.provenance.get('joint_report',{}),
         'missing_information':model.provenance.get('missing_information',[]),
         'source_audit':model.provenance.get('source_audit',[]),'drawing_evidence':model.provenance.get('drawing_evidence',{})}
     payload=model.model_dump_json(indent=2)

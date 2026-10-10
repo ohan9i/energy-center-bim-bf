@@ -6,7 +6,7 @@ import ifcopenshell.api
 import ifcopenshell.guid
 from shapely.geometry.polygon import orient
 from shapely.geometry import Polygon
-from .geometry import footprint, polygon_parts, solid_parts
+from .geometry import footprint, polygon_parts, solid_parts,opening_footprint,architectural_footprint
 from .schema import Model
 
 CLASSES={'wall':'IfcWall','column':'IfcColumn','beam':'IfcBeam','floor':'IfcSlab','roof':'IfcRoof','window':'IfcWindow','opening':'IfcBuildingElementProxy','door':'IfcDoor',
@@ -38,7 +38,7 @@ def export_ifc(model:Model):
         ifcopenshell.api.run('aggregate.assign_object',f,products=[storey],relating_object=building)
         floors[floor.id]=storey
     elevations={r.id:r.elevation for r in model.floors}
-    styled=[]
+    styled=[];objects={}
     def placement(obj):
         obj.ObjectPlacement=f.create_entity('IfcLocalPlacement',RelativePlacement=f.create_entity(
             'IfcAxis2Placement3D',Location=f.create_entity('IfcCartesianPoint',Coordinates=[0.,0.,0.])))
@@ -61,6 +61,7 @@ def export_ifc(model:Model):
     for e in model.elements:
         if e.excluded:continue
         obj=root(CLASSES[e.type],e.name,e.id)
+        objects[e.id]=obj
         styled.append((obj,e.type,e.source.get('material','unknown')))
         # Profiles and solid elevations are in model world coordinates. An identity
         # placement preserves those coordinates and satisfies IFC's product rule.
@@ -92,7 +93,7 @@ def export_ifc(model:Model):
                 props=ifcopenshell.api.run('pset.add_pset',f,product=part,name='Pset_ArchitecturalEvidence')
                 ifcopenshell.api.run('pset.edit_pset',f,pset=props,properties={'ParentElementId':e.id,'Role':c.role,
                     'GeometryStatus':'reconstruction_candidate','CADSource':f.create_entity('IfcText',json.dumps(c.source,ensure_ascii=False))})
-                styled.append((part,e.type,e.source.get('material','unknown')))
+                styled.append((part,'window' if c.source.get('material')=='glazing' else 'column' if c.source.get('material')=='metal' else 'floor' if c.source.get('material')=='finish' else e.type,c.source.get('material',e.source.get('material','unknown'))))
             ifcopenshell.api.run('aggregate.assign_object',f,products=children,relating_object=obj)
             continue
         if e.height is None:
@@ -110,7 +111,14 @@ def export_ifc(model:Model):
                 ifcopenshell.api.run('geometry.assign_representation',f,product=obj,representation=rep)
             continue
         solids=[]
-        for poly,relative_z,depth in solid_parts(e,model.elements):
+        pieces=solid_parts(e,model.elements)
+        if e.type=='wall' and any(d.type in ('door','window') and not d.excluded and d.floor_id==e.floor_id and
+            (d.height is not None or d.source.get('provisional_opening')) and opening_footprint(d).intersects(architectural_footprint(e)) for d in model.elements):
+            # IFC engines apply IfcRelVoidsElement. Export an unsliced host so the
+            # boolean is evaluated once; pre-slicing followed by void subtraction
+            # can erase thin finish fragments through OCCT tolerances.
+            pieces=[(p,e.z_offset,e.height) for p in polygon_parts(architectural_footprint(e))]
+        for poly,relative_z,depth in pieces:
             if depth is None:
                 # Landing surfaces are retained separately below, without fabricated slab thickness.
                 continue
@@ -124,6 +132,30 @@ def export_ifc(model:Model):
         if solids:
             rep=f.create_entity('IfcShapeRepresentation',ContextOfItems=body,RepresentationIdentifier='Body',RepresentationType='SweptSolid',Items=solids)
             ifcopenshell.api.run('geometry.assign_representation',f,product=obj,representation=rep)
+    # Semantic void/fill relationships complement the identical pre-sliced wall solids.
+    # Opening bounds are clipped to the host; unverified heights remain identified.
+    for e in model.elements:
+        if e.id not in objects or e.type not in ('door','window'):continue
+        provisional=e.source.get('provisional_opening',{})
+        height=e.height if e.height is not None else provisional.get('height')
+        z=e.z_offset+(0 if e.height is not None else provisional.get('z_offset',0))
+        if height is None:continue
+        filled=False
+        for wall in model.elements:
+            if wall.id not in objects or wall.type!='wall' or wall.floor_id!=e.floor_id or wall.height is None:continue
+            intersection=architectural_footprint(wall).intersection(opening_footprint(e))
+            lo=max(z,wall.z_offset);hi=min(z+height,wall.z_offset+wall.height)
+            if hi<=lo:continue
+            for i,poly in enumerate(polygon_parts(intersection)):
+                if poly.area<1e-6:continue
+                opening=root('IfcOpeningElement',e.name+' · 개구부 후보',e.id+'/'+wall.id+f'/void/{i}')
+                placement(opening);component_geometry(opening,poly,elevations[e.floor_id]+lo,hi-lo)
+                opening.PredefinedType='OPENING'
+                f.create_entity('IfcRelVoidsElement',GlobalId=ifcopenshell.guid.new(),RelatingBuildingElement=objects[wall.id],RelatedOpeningElement=opening)
+                if not filled:
+                    f.create_entity('IfcRelFillsElement',GlobalId=ifcopenshell.guid.new(),RelatingOpeningElement=opening,RelatedBuildingElement=objects[e.id]);filled=True
+                ps=ifcopenshell.api.run('pset.add_pset',f,product=opening,name='Pset_OpeningEvidence')
+                ifcopenshell.api.run('pset.edit_pset',f,pset=ps,properties={'DimensionVerified':e.height is not None and e.verified,'ModelElementId':e.id,'HostWallId':wall.id})
     palette={'wall':(.79,.82,.8),'column':(.46,.51,.55),'floor':(.89,.87,.82),'roof':(.7,.73,.75),
         'door':(.59,.44,.27),'window':(.5,.78,.87),'stair':(.69,.67,.63),'elevator':(.54,.6,.67),'space':(.57,.75,.69),'corridor':(.66,.76,.85)}
     styles={};materials={}

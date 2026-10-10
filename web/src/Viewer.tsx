@@ -23,6 +23,7 @@ export default function Viewer({model,floor,plan,selected,route,onSelect}:Props)
   const camera=new T.PerspectiveCamera(42,1,.025,2000);camera.rotation.order='YXZ';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=T.SRGBColorSpace;
   renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;renderer.localClippingEnabled=true;
+  renderer.shadowMap.enabled=!plan;renderer.shadowMap.type=T.PCFSoftShadowMap;
   container.append(renderer.domElement);renderer.domElement.tabIndex=0;renderer.domElement.setAttribute('aria-label','BIM 3D 탐색 화면');
   const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.08;controls.enableRotate=!plan;controls.maxPolarAngle=Math.PI*.94;controls.minDistance=.25;
   const visible=model.elements.filter(e=>!e.excluded&&(floor==='all'||e.floor_id===floor));
@@ -39,6 +40,9 @@ export default function Viewer({model,floor,plan,selected,route,onSelect}:Props)
   if(saved?.key===key){camera.position.copy(saved.position);controls.target.copy(saved.target);controls.update();}else fit();
   controls.enabled=!walking;
   scene.add(new T.HemisphereLight(0xfff6e5,0x8c9aab,2.2));const light=new T.DirectionalLight(0xfff5e4,3.2);light.position.set(cx+20,top+35,cy+15);scene.add(light);
+  light.castShadow=true;light.shadow.mapSize.set(2048,2048);light.shadow.camera.left=-size;light.shadow.camera.right=size;
+  light.shadow.camera.top=size;light.shadow.camera.bottom=-size;light.shadow.camera.far=250;light.shadow.normalBias=.035;
+  light.target.position.set(cx,base,cy);scene.add(light.target);
   const fill=new T.DirectionalLight(0xc8deff,1.25);fill.position.set(cx-30,top+10,cy-15);scene.add(fill);
   const grid=new T.GridHelper(Math.max(30,Math.ceil(size*1.4)),Math.min(100,Math.ceil(size*1.4)),0xc2cbd3,0xe0e5ea);grid.position.set(cx,base-.12,cy);scene.add(grid);
   const selectable:T.Mesh[]=[];
@@ -48,18 +52,20 @@ export default function Viewer({model,floor,plan,selected,route,onSelect}:Props)
    if(marker&&!showMarkers||hideWalls&&e.type==='wall'||hideRoof&&e.type==='roof'||space&&!showSpaces||e.type==='opening'&&!showMarkers)continue;
    const elevation=model.floors.find(f=>f.id===e.floor_id)!.elevation+floorOffset(model,e.floor_id,separation);
    for(const piece of renderPieces(e,model,assumptions)){
-    const portal=e.type==='door'&&Array.isArray(e.source.hinge);
+    const portal=e.type==='door'&&!e.components.length&&Array.isArray(e.source.hinge);
     const flat=piece.height===null||space||e.type==='opening'||portal;let geo:T.BufferGeometry;
     if(flat||plan){geo=new T.ShapeGeometry(shape(piece.poly));geo.rotateX(-Math.PI/2);}
     else{geo=new T.ExtrudeGeometry(shape(piece.poly),{depth:piece.height!,bevelEnabled:false,steps:1});geo.rotateX(-Math.PI/2);}
-    const color=marker?0xd29c47:e.source.material==='finish'?0xe7e5dd:colors[e.type]??0xd2b77c;
-    const transparent=e.type==='window'||e.type==='elevator'||space||marker||e.type==='opening'||portal;
-    const mat=new T.MeshStandardMaterial({color,roughness:e.type==='window'?.2:.78,metalness:e.type==='elevator'?.25:0,side:T.DoubleSide,transparent,
-      opacity:portal?.14:e.type==='elevator'?.16:space?.28:marker?.5:e.type==='opening'?.2:e.type==='window'?.48:1,depthWrite:!transparent,clippingPlanes:planes});
+    const material=piece.material??String(e.source.material??''),glass=material==='glazing',metal=material==='metal';
+    const color=marker?0xd29c47:metal?0x69777f:material==='concrete'?0xbfc4c2:material==='finish'?0xe7e5dd:colors[e.type]??0xd2b77c;
+    const transparent=glass||!e.components.length&&['window','elevator'].includes(e.type)||space||marker||e.type==='opening'||portal;
+    const mat=new T.MeshStandardMaterial({color,roughness:glass?.14:metal?.32:.78,metalness:metal?.65:0,side:T.DoubleSide,transparent,
+      opacity:portal?.14:glass?.38:transparent?(space?.28:marker?.5:.2):1,depthWrite:!transparent,clippingPlanes:planes});
     const mesh=new T.Mesh(geo,mat);mesh.position.y=elevation+(plan?e.z_offset:piece.z)+(space?.07:flat?.012:0);mesh.userData={id:e.id,baseColor:color,space};scene.add(mesh);selectable.push(mesh);
+    mesh.castShadow=!flat&&!transparent;mesh.receiveShadow=!transparent;
     const edges=new T.LineSegments(new T.EdgesGeometry(geo,25),new T.LineBasicMaterial({color:marker?0xb18035:0x667480,transparent:true,opacity:space?.38:.27,clippingPlanes:planes}));edges.position.copy(mesh.position);scene.add(edges);
    }
-   if(e.type==='door'&&Array.isArray(e.source.hinge)&&Array.isArray(e.source.leaf_end)){
+   if(e.type==='door'&&!e.components.length&&Array.isArray(e.source.hinge)&&Array.isArray(e.source.leaf_end)){
     const a=e.source.hinge as XY,b=e.source.leaf_end as XY,h=!plan?(e.height??(assumptions?2.1:.04)):.02;
     const geo=new T.BoxGeometry(Math.hypot(b[0]-a[0],b[1]-a[1]),h,.04),mat=new T.MeshStandardMaterial({color:colors.door,roughness:.7,clippingPlanes:planes});
     const mesh=new T.Mesh(geo,mat);mesh.position.set((a[0]+b[0])/2,elevation+e.z_offset+h/2,(a[1]+b[1])/2);mesh.rotation.y=-Math.atan2(b[1]-a[1],b[0]-a[0]);mesh.userData={id:e.id,baseColor:colors.door};scene.add(mesh);selectable.push(mesh);
@@ -118,11 +124,11 @@ export default function Viewer({model,floor,plan,selected,route,onSelect}:Props)
   <button disabled={plan||fallback} className={walking?'active':''} onClick={()=>{if(!walking)apiRef.current?.interior();setWalking(!walking);}}>실내 시점{walking?' 종료':''}</button>
   <label><input type="checkbox" checked={hideWalls} onChange={e=>setHideWalls(e.target.checked)}/>벽 숨김</label><label><input type="checkbox" checked={hideRoof} onChange={e=>setHideRoof(e.target.checked)}/>지붕 숨김</label>
   <label><input type="checkbox" checked={showSpaces} onChange={e=>setShowSpaces(e.target.checked)}/>실 영역</label><label><input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/>실명</label><label><input type="checkbox" checked={showMarkers} onChange={e=>setShowMarkers(e.target.checked)}/>미확정 면</label>
-  <label><input type="checkbox" checked={assumptions} onChange={e=>setAssumptions(e.target.checked)}/>문·창 높이 가정 표시</label>
+  <label><input type="checkbox" checked={assumptions} onChange={e=>setAssumptions(e.target.checked)}/>임시 조립체 입체 표시</label>
   <label>층 분리 <input aria-label="층 분리 간격" type="range" min="0" max="12" step="1" value={separation} onChange={e=>setSeparation(Number(e.target.value))}/>{separation} m</label>
   <label>단면 <select aria-label="단면 방향" value={section} onChange={e=>setSection(e.target.value)}><option value="none">없음</option><option value="x">X 방향</option><option value="y">Y 방향</option><option value="z">높이 Z</option></select></label>
   {section!=='none'&&<input aria-label="단면 위치" type="range" min="0" max="100" value={cut} onChange={e=>setCut(Number(e.target.value))}/>}
- </div>{assumptions&&!model.is_example&&<p className="geometry-assumption">시각화 가정: 미확정 문 높이 2.10 m · 창 높이 2.40 m / 창대 0.90 m. 저장·IFC에는 확정 치수로 반영하지 않습니다.</p>}
+ </div>{assumptions&&!model.is_example&&<p className="geometry-assumption">임시 치수 포함 · 슬래브·마감·참·문틀·창틀·샤프트는 검토 후보입니다. JSON/IFC에도 미확정 근거를 보존합니다. 선택 객체에서 치수와 근거를 확인하세요.</p>}
  {walking&&<p className="walk-help">화면 클릭 후 WASD: 전후좌우 · Q/E: 높이 · 드래그: 둘러보기. 자유 시점이며 통행 가능 여부를 판정하지 않습니다.</p>}
  <div className="viewer" ref={host} aria-label={`${model.name} ${plan?'평면':'3D'} 모델`}>
  {fallback&&<div className="fallback"><p>WebGL을 사용할 수 없어 평면도로 표시합니다. 전체 층에서는 {model.floors.find(f=>f.id===fs)?.name}을 표시합니다.</p><svg viewBox={`${b.min[0]-1} ${b.min[1]-1} ${b.max[0]-b.min[0]+2} ${b.max[1]-b.min[1]+2}`} role="img" aria-label="건축물 평면도">

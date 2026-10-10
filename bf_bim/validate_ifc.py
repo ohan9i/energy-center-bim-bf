@@ -76,7 +76,12 @@ def validate_file(model: Model, path: Path):
 def main():
     output = Path('cad_output')
     model = Model.model_validate_json((output/'energy-center-model.json').read_text(encoding='utf-8'))
-    result = validate_file(model, output/'energy-center.ifc')
+    try:
+        result = validate_file(model, output/'energy-center.ifc')
+    except Exception as exc:
+        (output/'ifc-validation.json').write_text(json.dumps(dict(status='failed',error=str(exc),
+            ifc_sha256=hashlib.sha256((output/'energy-center.ifc').read_bytes()).hexdigest()),ensure_ascii=False,indent=2),encoding='utf-8')
+        raise
     (output/'ifc-validation.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result, indent=2))
 

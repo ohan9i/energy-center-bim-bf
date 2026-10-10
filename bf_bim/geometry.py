@@ -1,6 +1,14 @@
 """Metre-based geometry: legacy route footprints and architectural vertical slices."""
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon, MultiPolygon,GeometryCollection
 from shapely.ops import unary_union
+
+def opening_footprint(element):
+    rings=element.source.get('architectural_opening_polygons')
+    return unary_union([Polygon(r) for r in rings]) if rings else Polygon(element.polygon,element.holes)
+
+def architectural_footprint(element):
+    profiles=element.source.get('architectural_wall_profiles')
+    return unary_union([Polygon(p[0],p[1:]) for p in profiles]) if profiles is not None else Polygon(element.polygon,element.holes)
 
 def footprint(element, elements):
     poly=Polygon(element.polygon, element.holes)
@@ -16,6 +24,8 @@ def polygon_parts(geom):
         return [geom] if not geom.is_empty else []
     if isinstance(geom, MultiPolygon):
         return list(geom.geoms)
+    if isinstance(geom,GeometryCollection):
+        return [p for g in geom.geoms for p in polygon_parts(g)]
     return []
 
 
@@ -27,19 +37,25 @@ def solid_parts(element, elements):
     """
     if element.components:
         return [(Polygon(c.polygon,c.holes),element.z_offset+c.z_offset,c.height) for c in element.components]
-    poly=Polygon(element.polygon,element.holes)
+    poly=architectural_footprint(element)
     if element.type!='wall' or element.height is None:
-        return [(poly,element.z_offset,element.height)]
-    openings=[e for e in elements if e.type in ('door','window') and not e.excluded and
-        e.floor_id==element.floor_id and e.height is not None and Polygon(e.polygon,e.holes).intersects(poly)]
+        return [(p,element.z_offset,element.height) for p in polygon_parts(poly)]
+    openings=[]
+    for e in elements:
+        if e.type not in ('door','window') or e.excluded or e.floor_id!=element.floor_id:continue
+        if not opening_footprint(e).intersects(poly):continue
+        provisional=e.source.get('provisional_opening',{})
+        height=e.height if e.height is not None else provisional.get('height')
+        z=e.z_offset+(0 if e.height is not None else provisional.get('z_offset',0))
+        if height is not None:openings.append((e,z,height))
     # Preserve original example geometry; refined CAD models require known opening heights.
     if not openings and not element.source.get('geometry_status'):
         return [(p,element.z_offset,element.height) for p in polygon_parts(footprint(element,elements))]
     start,end=element.z_offset,element.z_offset+element.height
-    levels=sorted({start,end,*[max(start,min(end,z)) for e in openings for z in (e.z_offset,e.z_offset+e.height)]})
+    levels=sorted({start,end,*[max(start,min(end,v)) for e,z,h in openings for v in (z,z+h)]})
     result=[]
     for lo,hi in zip(levels,levels[1:]):
-        cuts=[Polygon(e.polygon,e.holes) for e in openings if e.z_offset<=lo and e.z_offset+e.height>=hi]
+        cuts=[opening_footprint(e) for e,z,h in openings if z<=lo and z+h>=hi]
         part=poly.difference(unary_union(cuts)) if cuts else poly
         result.extend((p,lo,hi-lo) for p in polygon_parts(part) if hi-lo>1e-8)
     return result

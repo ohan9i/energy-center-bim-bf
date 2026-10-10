@@ -99,15 +99,21 @@ def main():
                 points=list(r.coords)
                 faces.extend([[(a[0],a[1],elevation+z),(b[0],b[1],elevation+z),(b[0],b[1],elevation+z+depth),(a[0],a[1],elevation+z+depth)] for a,b in zip(points,points[1:])])
             ax.add_collection3d(Poly3DCollection(faces,facecolor=palette.get(e.type,'#ccc'),edgecolor='#61717b',linewidth=.1,alpha=.16 if e.type=='elevator' else .85))
+            from shapely import constrained_delaunay_triangles
+            caps=[]
+            for tri in constrained_delaunay_triangles(p).geoms:
+                for level in (elevation+z,elevation+z+depth):
+                    caps.append([(x,y,level) for x,y in tri.exterior.coords])
+            ax.add_collection3d(Poly3DCollection(caps,facecolor=palette.get(e.type,'#ccc'),edgecolor='none',alpha=.85))
     ax.set_xlim(5,83);ax.set_ylim(15,65);ax.set_zlim(0,35);ax.set_box_aspect((78,50,35));ax.view_init(elev=38,azim=-65)
-    ax.set_title('BIM 조립체 검토 · 층별 표시 간격 3 m\n문·창은 높이 미확인 평면 / 지붕 후보 숨김',fontsize=14)
+    ax.set_title('BIM 조립체 검토 · 층별 표시 간격 3 m\n슬래브·창호·샤프트 임시 치수 포함 / 지붕 후보 숨김',fontsize=14)
     fig.savefig(out/'energy-center-preview.png',dpi=150,bbox_inches='tight');plt.close(fig)
     (out/'energy-center.ifc').write_text(export_ifc(m),encoding='utf-8')
     report=dict(status='automated_geometric_checks_passed',not_certified=True,floors=checks,
         audited_drawing_count=len({r['file'] for r in m.provenance['source_audit']})+1,
         maximum_column_plan_deviation_m=max(residuals,default=0),source_hashes_unchanged=True,
         unknown_door_window_heights_preserved=True,assemblies=sum(len(e.components) for e in m.elements),
-        limitations=m.provenance['missing_information'],browser_visual_check='unavailable: no browser surfaces enabled')
+        limitations=m.provenance['missing_information'],browser_visual_check='unavailable: browser inventory empty; Chrome creation rejected')
     (out/'bim-validation.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(report,ensure_ascii=False,indent=2))
 

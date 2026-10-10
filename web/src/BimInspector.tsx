@@ -26,9 +26,11 @@ export default function BimInspector({model,library,item,floor,onActivate,onFloo
     <dt>X / Y 범위 길이</dt><dd>{bb&&`${(bb.max[0]-bb.min[0]).toFixed(3)} / ${(bb.max[1]-bb.min[1]).toFixed(3)} m`}</dd>
     {item.source.measured_thickness_m!==undefined&&<><dt>벽면 간격</dt><dd>{format(item.source.measured_thickness_m)}</dd></>}
     {item.source.leaf_radius_m!==undefined&&<><dt>문 회전호 반지름</dt><dd>{format(item.source.leaf_radius_m)} <small>(문 유효폭과 별도)</small></dd></>}
-    {item.components.length>0&&<><dt>조립체 구성요소</dt><dd>{item.components.filter(c=>c.role==='tread').length}개 단 / {item.components.filter(c=>c.role==='landing').length}개 참</dd><dt>평면 단선 간격</dt><dd>{format(item.source.tread_pitch_m)}</dd><dt>상세 단높이</dt><dd>{format(item.source.riser_m)}</dd></>}
+    {item.components.length>0&&<><dt>조립체 구성요소</dt><dd>{item.components.length}개 · {[...new Set(item.components.map(c=>c.role))].join(', ')}</dd></>}
+    {item.type==='stair'&&<><dt>평면 단선 간격</dt><dd>{format(item.source.tread_pitch_m)}</dd><dt>상세 단높이</dt><dd>{format(item.source.riser_m)}</dd></>}
     <dt>도면</dt><dd>{String(item.source.file??'출처 없음')}</dd><dt>높이 근거</dt><dd>{item.height===null?'미확인 · 가정 표시와 별도로 저장':String(item.source.height_source??'구성요소별 근거 확인')}</dd>
    </dl>
+   {item.source.assembly_status!==undefined&&<details open><summary>임시 조립체 치수 · 도면 검증 전</summary><p className="geometry-assumption">아래 높이와 두께에는 가정값이 포함됩니다. 객체 편집에서 components를 수정하거나 bf_bim/assembly_parameters.json 변경 후 재생성할 수 있습니다.</p><table><thead><tr><th>구성</th><th>상대 Z (m)</th><th>높이/두께 (m)</th></tr></thead><tbody>{item.components.slice(0,40).map((c,i)=><tr key={i}><td>{c.role}</td><td>{c.z_offset.toFixed(3)}</td><td>{c.height?.toFixed(3)??'미확인'}</td></tr>)}</tbody></table></details>}
    {item.source.marker_width_m!==undefined&&<p className="geometry-assumption">이 면의 10 mm 폭은 위치 표시용입니다. 실제 벽 두께가 아닙니다.</p>}
    {item.source.boundary_status==='labels_share_boundary'&&<p className="geometry-assumption">여러 실명이 한 경계에 포함됩니다. 실별 칸막이와 면적 분리는 미확정입니다.</p>}
    {item.source.detail_pitch_conflict===true&&<p className="geometry-assumption">평면 280 mm / 코어 상세 300 mm 단너비 불일치. 자동 통일하지 않았습니다.</p>}

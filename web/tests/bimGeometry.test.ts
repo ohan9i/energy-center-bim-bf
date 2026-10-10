@@ -24,9 +24,22 @@ describe('architectural BIM geometry',()=>{
  it('separates storeys without modifying architectural elevations',()=>{
   const m=model();m.floors.push({id:'f2',name:'2F',elevation:4.2});expect(floorOffset(m,'f2',6)).toBe(6);expect(m.floors[1].elevation).toBe(4.2);
  });
+ it('uses full host depth for provisional openings while preserving route footprint and saved values',()=>{
+  const m=model();m.elements[1].height=null;
+  m.elements[1].polygon=[[1,0],[2,0],[2,.1],[1,.1]];
+  m.elements[1].source={provisional_opening:{height:2.1,z_offset:0},architectural_opening_polygons:[[[1,-.01],[2,-.01],[2,.21],[1,.21]]]};
+  const before=JSON.stringify(m),pieces=renderPieces(m.elements[0],m,true);
+  const area=pieces.filter(p=>p.z<=.5&&.5<p.z+p.height!).reduce((sum,p)=>sum+planArea({polygon:p.poly[0],holes:p.poly.slice(1)}),0);
+  expect(area).toBeCloseTo(1);expect(JSON.stringify(m)).toBe(before);
+ });
+ it('keeps original BIM object when its duplicate wall solid is removed',()=>{
+  const m=model();m.elements[0].source.architectural_wall_profiles=[];
+  expect(renderPieces(m.elements[0],m,true)).toEqual([]);
+  expect(planArea(m.elements[0])).toBeCloseTo(1.2);
+ });
  it('renders architectural controls and disclosure for unknown heights',()=>{
   const m=model(),profile=JSON.parse(readFileSync(new URL('../public/rules.json',import.meta.url),'utf8')).profiles.wheelchair;
   const html=renderToStaticMarkup(createElement(Viewer,{model:m,floor:'f1',plan:false,selected:'',route:null,profile,onSelect:()=>{}}));
-  for(const label of ['벽 숨김','실 영역','실내 시점','단면 방향','층 분리 간격','저장·IFC에는 확정 치수로 반영하지 않습니다'])expect(html).toContain(label);
+  for(const label of ['벽 숨김','실 영역','실내 시점','단면 방향','층 분리 간격','JSON/IFC에도 미확정 근거를 보존합니다'])expect(html).toContain(label);
  });
 });

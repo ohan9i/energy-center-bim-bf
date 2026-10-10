@@ -1,0 +1,15 @@
+{
+  "status": "provisional_not_drawing_verified",
+  "slab_thickness": 0.2,
+  "finish_thickness": 0.03,
+  "landing_thickness": 0.15,
+  "stair_support_thickness": 0.15,
+  "door_height": 2.1,
+  "window_height": 2.4,
+  "window_sill": 0.9,
+  "frame_width": 0.05,
+  "door_leaf_thickness": 0.04,
+  "glass_thickness": 0.01,
+  "shaft_lining_thickness": 0.12,
+  "note": "All numeric values are editable reconstruction assumptions, not measured specifications. Slab boundary, window schedule matching, shaft lining and stair direction still require review. No beam placement is inferred from column proximity."
+}
