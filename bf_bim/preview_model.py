@@ -9,7 +9,7 @@ from .schema import Model
 from .geometry import footprint,polygon_parts
 from .ifc_export import export_ifc
 
-def main():
+def legacy_main():
     m=Model.model_validate_json(Path('cad_output/energy-center-model.json').read_text(encoding='utf-8'))
     plt.rcParams['font.family']='Malgun Gothic'
     fig=plt.figure(figsize=(16,9))
@@ -37,5 +37,9 @@ def main():
     fig.savefig('cad_output/energy-center-preview.png',dpi=160,bbox_inches='tight');plt.close(fig)
     Path('cad_output/energy-center.ifc').write_text(export_ifc(m),encoding='utf-8')
     print(f'Preview and IFC generated: {len(m.elements)} elements')
+
+def main():
+    from .verify_model import main as verify
+    verify()
 
 if __name__=='__main__':main()

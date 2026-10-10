@@ -2,67 +2,130 @@ import {useEffect,useRef,useState} from 'react';
 import * as T from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import type {Model,XY,Profile} from './model';
-import {footprints,bounds,raw,type Poly} from './geometry';
+import {bounds,raw,type Poly} from './geometry';
 import type {RouteResult} from './navigation';
-import {evaluate} from './evaluation';
+import {renderPieces,floorOffset} from './bimGeometry';
 interface Props {model:Model;floor:string;plan:boolean;selected:string;route:RouteResult|null;profile:Profile;onSelect:(id:string)=>void}
-const colors:Record<string,number>={wall:0xc8d3d5,column:0x788d93,floor:0xe8eeee,door:0x187c79,ramp:0x96b7a2,stair:0xb3a28a,elevator:0x739cad,obstacle:0x7f8b94,unclassified:0xd2b77c};
-export default function Viewer({model,floor,plan,selected,route,profile,onSelect}:Props){
- const host=useRef<HTMLDivElement>(null);const selectRef=useRef(onSelect);selectRef.current=onSelect;
- const [fallback,setFallback]=useState(false);
+const colors:Record<string,number>={wall:0xcbd1cc,column:0x75838b,beam:0x68737e,floor:0xe4dfd3,roof:0xb2bbc0,door:0x976f46,window:0x7fc6df,opening:0xd69e50,space:0x91bfb0,corridor:0xa9c2d9,ramp:0x96b7a2,stair:0xb0aaa0,elevator:0x8a9aac,obstacle:0x7f8b94,unclassified:0xd2b77c};
+type CameraAPI={fit:()=>void;focus:(id:string)=>void;interior:()=>void};
+export default function Viewer({model,floor,plan,selected,route,onSelect}:Props){
+ const host=useRef<HTMLDivElement>(null),selectRef=useRef(onSelect),selectedRef=useRef(selected),apiRef=useRef<CameraAPI|null>(null);
+ selectRef.current=onSelect;selectedRef.current=selected;
+ const meshesRef=useRef<T.Mesh[]>([]),[fallback,setFallback]=useState(false);
+ const [hideWalls,setHideWalls]=useState(false),[showSpaces,setShowSpaces]=useState(false),[showLabels,setShowLabels]=useState(false),[showMarkers,setShowMarkers]=useState(false),[hideRoof,setHideRoof]=useState(false),[assumptions,setAssumptions]=useState(true),[separation,setSeparation]=useState(0),[section,setSection]=useState('none'),[cut,setCut]=useState(50),[walking,setWalking]=useState(false);
+ const cameraState=useRef<{key:string;position:T.Vector3;target:T.Vector3}|null>(null);
+ useEffect(()=>{setWalking(false);cameraState.current=null;},[model.id,floor,plan]);
  useEffect(()=>{
   const container=host.current;if(!container)return;
   let renderer:T.WebGLRenderer;
   try{renderer=new T.WebGLRenderer({antialias:true});setFallback(false);}catch{setFallback(true);return;}
-  const scene=new T.Scene();scene.background=new T.Color(0xf5f7f7);
-  const camera=new T.PerspectiveCamera(38,1,.01,2000);
+  const scene=new T.Scene();scene.background=new T.Color(0xf1f3f5);
+  const camera=new T.PerspectiveCamera(42,1,.025,2000);camera.rotation.order='YXZ';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=T.SRGBColorSpace;
-  container.append(renderer.domElement);
-  const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
-  const es=model.elements.filter(e=>!e.excluded&&(floor==='all'||e.floor_id===floor));
-  const box=es.length?bounds(es.map(e=>raw(e))):{min:[0,0] as XY,max:[20,12] as XY};
-  const cx=(box.min[0]+box.max[0])/2,cy=(box.min[1]+box.max[1])/2,size=Math.max(box.max[0]-box.min[0],box.max[1]-box.min[1],5);
-  const base=model.floors.find(f=>f.id===floor)?.elevation||0;
-  controls.target.set(cx,base,cy);camera.position.set(cx+(plan?0:size*.65),base+size*(plan?1.6:1.15),cy+(plan?.001:size*1.1));
-  controls.maxPolarAngle=Math.PI/2-.01;controls.enableRotate=!plan;controls.update();
-  scene.add(new T.HemisphereLight(0xffffff,0xc4cdd0,2.7));const light=new T.DirectionalLight(0xffffff,2.3);light.position.set(cx+15,30,cy-8);scene.add(light);
-  const grid=new T.GridHelper(Math.max(30,Math.ceil(size*1.4)),Math.min(100,Math.ceil(size*1.4)),0xd3dcdf,0xe4e9eb);grid.position.set(cx,base-.18,cy);scene.add(grid);
+  renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;renderer.localClippingEnabled=true;
+  container.append(renderer.domElement);renderer.domElement.tabIndex=0;renderer.domElement.setAttribute('aria-label','BIM 3D 탐색 화면');
+  const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.08;controls.enableRotate=!plan;controls.maxPolarAngle=Math.PI*.94;controls.minDistance=.25;
+  const visible=model.elements.filter(e=>!e.excluded&&(floor==='all'||e.floor_id===floor));
+  const extent=visible.length?bounds(visible.map(raw)):{min:[0,0] as XY,max:[20,12] as XY};
+  const cx=(extent.min[0]+extent.max[0])/2,cy=(extent.min[1]+extent.max[1])/2,size=Math.max(extent.max[0]-extent.min[0],extent.max[1]-extent.min[1],5);
+  const base=model.floors.find(f=>f.id===floor)?.elevation??0;
+  const top=Math.max(...model.floors.filter(f=>floor==='all'||f.id===floor).map(f=>f.elevation+floorOffset(model,f.id,separation)+5),5);
+  const planes:T.Plane[]=[];
+  if(section==='x')planes.push(new T.Plane(new T.Vector3(-1,0,0),extent.min[0]+(extent.max[0]-extent.min[0])*cut/100));
+  if(section==='y')planes.push(new T.Plane(new T.Vector3(0,0,-1),extent.min[1]+(extent.max[1]-extent.min[1])*cut/100));
+  if(section==='z')planes.push(new T.Plane(new T.Vector3(0,-1,0),base+(top-base)*cut/100));
+  const fit=()=>{controls.target.set(cx,base+(plan?0:(top-base)*.25),cy);camera.position.set(cx+(plan?0:size*.72),base+size*(plan?1.5:.85),cy+(plan?.001:size*.85));controls.update();};
+  const key=model.id+floor+plan,saved=cameraState.current;
+  if(saved?.key===key){camera.position.copy(saved.position);controls.target.copy(saved.target);controls.update();}else fit();
+  controls.enabled=!walking;
+  scene.add(new T.HemisphereLight(0xfff6e5,0x8c9aab,2.2));const light=new T.DirectionalLight(0xfff5e4,3.2);light.position.set(cx+20,top+35,cy+15);scene.add(light);
+  const fill=new T.DirectionalLight(0xc8deff,1.25);fill.position.set(cx-30,top+10,cy-15);scene.add(fill);
+  const grid=new T.GridHelper(Math.max(30,Math.ceil(size*1.4)),Math.min(100,Math.ceil(size*1.4)),0xc2cbd3,0xe0e5ea);grid.position.set(cx,base-.12,cy);scene.add(grid);
   const selectable:T.Mesh[]=[];
   function shape(poly:Poly){const s=new T.Shape(poly[0].map(p=>new T.Vector2(p[0],-p[1])));for(const r of poly.slice(1))s.holes.push(new T.Path(r.map(p=>new T.Vector2(p[0],-p[1]))));return s;}
-  for(const e of es){
-   const z=model.floors.find(f=>f.id===e.floor_id)!.elevation+e.z_offset;
-   if(['space','corridor'].includes(e.type))continue;
-   const ev=evaluate(e,profile);let color=colors[e.type]||0xd2b77c;
-   if(e.id===selected)color=0x32a7c2;else if(['door','stair','ramp','elevator','unclassified'].includes(e.type)){if(ev.status==='blocked')color=0xc2554c;else if(ev.status==='unknown')color=0xc79532;}
-   for(const poly of footprints(e,model)){
-    // Unknown height has a flat footprint; display never asserts an invented storey height.
-    const depth=plan?(e.type==='floor'?.03:.08):(e.height??.025);
-    const geo=new T.ExtrudeGeometry(shape(poly),{depth,bevelEnabled:false,steps:1});geo.rotateX(-Math.PI/2);
-    const mat=new T.MeshStandardMaterial({color,roughness:.85,transparent:e.type==='door'||e.height===null,opacity:e.type==='door'?.32:e.height===null?.5:1});
-    const mesh=new T.Mesh(geo,mat);mesh.position.y=z;mesh.userData.id=e.id;scene.add(mesh);selectable.push(mesh);
-    const outline=new T.LineSegments(new T.EdgesGeometry(geo),new T.LineBasicMaterial({color:e.id===selected?0x087b9a:0x809398,transparent:true,opacity:.55}));outline.position.copy(mesh.position);scene.add(outline);
+  for(const e of visible){
+   const marker=Boolean(e.source.marker_width_m),space=['space','corridor'].includes(e.type);
+   if(marker&&!showMarkers||hideWalls&&e.type==='wall'||hideRoof&&e.type==='roof'||space&&!showSpaces||e.type==='opening'&&!showMarkers)continue;
+   const elevation=model.floors.find(f=>f.id===e.floor_id)!.elevation+floorOffset(model,e.floor_id,separation);
+   for(const piece of renderPieces(e,model,assumptions)){
+    const portal=e.type==='door'&&Array.isArray(e.source.hinge);
+    const flat=piece.height===null||space||e.type==='opening'||portal;let geo:T.BufferGeometry;
+    if(flat||plan){geo=new T.ShapeGeometry(shape(piece.poly));geo.rotateX(-Math.PI/2);}
+    else{geo=new T.ExtrudeGeometry(shape(piece.poly),{depth:piece.height!,bevelEnabled:false,steps:1});geo.rotateX(-Math.PI/2);}
+    const color=marker?0xd29c47:e.source.material==='finish'?0xe7e5dd:colors[e.type]??0xd2b77c;
+    const transparent=e.type==='window'||e.type==='elevator'||space||marker||e.type==='opening'||portal;
+    const mat=new T.MeshStandardMaterial({color,roughness:e.type==='window'?.2:.78,metalness:e.type==='elevator'?.25:0,side:T.DoubleSide,transparent,
+      opacity:portal?.14:e.type==='elevator'?.16:space?.28:marker?.5:e.type==='opening'?.2:e.type==='window'?.48:1,depthWrite:!transparent,clippingPlanes:planes});
+    const mesh=new T.Mesh(geo,mat);mesh.position.y=elevation+(plan?e.z_offset:piece.z)+(space?.07:flat?.012:0);mesh.userData={id:e.id,baseColor:color,space};scene.add(mesh);selectable.push(mesh);
+    const edges=new T.LineSegments(new T.EdgesGeometry(geo,25),new T.LineBasicMaterial({color:marker?0xb18035:0x667480,transparent:true,opacity:space?.38:.27,clippingPlanes:planes}));edges.position.copy(mesh.position);scene.add(edges);
+   }
+   if(e.type==='door'&&Array.isArray(e.source.hinge)&&Array.isArray(e.source.leaf_end)){
+    const a=e.source.hinge as XY,b=e.source.leaf_end as XY,h=!plan?(e.height??(assumptions?2.1:.04)):.02;
+    const geo=new T.BoxGeometry(Math.hypot(b[0]-a[0],b[1]-a[1]),h,.04),mat=new T.MeshStandardMaterial({color:colors.door,roughness:.7,clippingPlanes:planes});
+    const mesh=new T.Mesh(geo,mat);mesh.position.set((a[0]+b[0])/2,elevation+e.z_offset+h/2,(a[1]+b[1])/2);mesh.rotation.y=-Math.atan2(b[1]-a[1],b[0]-a[0]);mesh.userData={id:e.id,baseColor:colors.door};scene.add(mesh);selectable.push(mesh);
    }
   }
-  for(const place of model.places.filter(p=>floor==='all'||p.floor_id===floor)){
-   const c=document.createElement('canvas');c.width=512;c.height=96;const ctx=c.getContext('2d')!;ctx.fillStyle='#ffffff';ctx.fillRect(0,0,512,96);ctx.fillStyle='#183e48';ctx.font='600 34px sans-serif';ctx.textAlign='center';ctx.fillText(place.name,256,60);
-   const tex=new T.CanvasTexture(c);const sprite=new T.Sprite(new T.SpriteMaterial({map:tex,transparent:true,depthTest:false}));sprite.position.set(place.point[0],(model.floors.find(f=>f.id===place.floor_id)!.elevation)+(plan?.35:3.2),place.point[1]);sprite.scale.set(3.6,.675,1);scene.add(sprite);
+  meshesRef.current=selectable;
+  for(const mesh of selectable)if(mesh.userData.id===selectedRef.current)(mesh.material as T.MeshStandardMaterial).color.setHex(0x22a2bd);
+  if(showLabels)for(const place of model.places.filter(p=>floor==='all'||p.floor_id===floor)){
+   const c=document.createElement('canvas');c.width=512;c.height=96;const ctx=c.getContext('2d')!;ctx.fillStyle='#ffffffdd';ctx.fillRect(0,0,512,96);ctx.fillStyle='#183e48';ctx.font='600 30px sans-serif';ctx.textAlign='center';ctx.fillText(place.name,256,60);
+   const tex=new T.CanvasTexture(c),sprite=new T.Sprite(new T.SpriteMaterial({map:tex,transparent:true,depthTest:true}));sprite.position.set(place.point[0],model.floors.find(f=>f.id===place.floor_id)!.elevation+floorOffset(model,place.floor_id,separation)+(plan?.2:1.8),place.point[1]);sprite.scale.set(4.2,.788,1);scene.add(sprite);
   }
-  if(route?.status==='found'){
-   for(let i=1;i<route.points.length;i++){const a=route.points[i-1],b=route.points[i];if(floor!=='all'&&(a.floor!==floor||b.floor!==floor))continue;
-    const za=model.floors.find(f=>f.id===a.floor)!.elevation+.12,zb=model.floors.find(f=>f.id===b.floor)!.elevation+.12;
-    const start=new T.Vector3(a.point[0],za,a.point[1]),end=new T.Vector3(b.point[0],zb,b.point[1]);
-    if(start.distanceTo(end)<1e-6)continue;
-    const geo=new T.CylinderGeometry(.045,.045,start.distanceTo(end),8);const mesh=new T.Mesh(geo,new T.MeshBasicMaterial({color:a.floor===b.floor?0x0d9087:0x6366b6,depthTest:false}));mesh.position.copy(start).add(end).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),end.clone().sub(start).normalize());mesh.renderOrder=10;scene.add(mesh);
-   }
+  if(route?.status==='found')for(let i=1;i<route.points.length;i++){
+   const a=route.points[i-1],b=route.points[i];if(floor!=='all'&&(a.floor!==floor||b.floor!==floor))continue;
+   const start=new T.Vector3(a.point[0],model.floors.find(f=>f.id===a.floor)!.elevation+floorOffset(model,a.floor,separation)+.12,a.point[1]),end=new T.Vector3(b.point[0],model.floors.find(f=>f.id===b.floor)!.elevation+floorOffset(model,b.floor,separation)+.12,b.point[1]);
+   if(start.distanceTo(end)<1e-6)continue;
+   const mesh=new T.Mesh(new T.CylinderGeometry(.045,.045,start.distanceTo(end),8),new T.MeshBasicMaterial({color:0x0d9087,clippingPlanes:planes}));mesh.position.copy(start).add(end).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),end.sub(start).normalize());scene.add(mesh);
   }
-  let down:[number,number]|null=null;const pointerDown=(e:PointerEvent)=>{down=[e.clientX,e.clientY];};
-  const pointerUp=(e:PointerEvent)=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const r=renderer.domElement.getBoundingClientRect();const ray=new T.Raycaster();ray.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),camera);const hit=ray.intersectObjects(selectable).find(x=>model.elements.find(el=>el.id===x.object.userData.id)?.type!=='floor');if(hit)selectRef.current(hit.object.userData.id);};
-  renderer.domElement.addEventListener('pointerdown',pointerDown);renderer.domElement.addEventListener('pointerup',pointerUp);
-  const resize=new ResizeObserver(()=>{const w=container.clientWidth,h=container.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);});resize.observe(container);
-  let frame=0;function animate(){controls.update();renderer.render(scene,camera);frame=requestAnimationFrame(animate);}animate();
-  return ()=>{cancelAnimationFrame(frame);resize.disconnect();controls.dispose();renderer.domElement.removeEventListener('pointerdown',pointerDown);renderer.domElement.removeEventListener('pointerup',pointerUp);scene.traverse(obj=>{const mesh=obj as T.Mesh;if(mesh.geometry)mesh.geometry.dispose();if(mesh.material){for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){const map=(mat as T.SpriteMaterial).map;map?.dispose();mat.dispose();}}});renderer.dispose();renderer.domElement.remove();};
- },[model,floor,plan,selected,route,profile]);
- const fs=model.floors.find(f=>f.id===floor)?.id||model.floors[0].id;
- const els=model.elements.filter(e=>e.floor_id===fs&&!e.excluded);const b=els.length?bounds(els.map(raw)):{min:[0,0] as XY,max:[20,12] as XY};
- return <div className="viewer" ref={host} role="img" aria-label={`${model.name} ${plan?'평면':'3D'} 모델. 객체 선택은 좌측 객체 목록에서도 가능합니다.`}>{fallback&&<div className="fallback"><p>WebGL을 사용할 수 없어 평면도로 표시합니다.</p><svg viewBox={`${b.min[0]-1} ${b.min[1]-1} ${b.max[0]-b.min[0]+2} ${b.max[1]-b.min[1]+2}`} role="img" aria-label="건축물 평면도">{els.filter(e=>!['space','corridor'].includes(e.type)).flatMap(e=>footprints(e,model).map((poly,i)=><path key={e.id+i} d={poly.map(r=>'M'+r.map(p=>p.join(',')).join('L')+'Z').join(' ')} fill={e.id===selected?'#32a7c2':'#'+(colors[e.type]||0xaaaaaa).toString(16)} fillRule="evenodd" stroke="#607982" strokeWidth=".035" onClick={()=>onSelect(e.id)}/>))}{route?.points.slice(1).map((p,i)=>{const a=route.points[i];return a.floor===fs&&p.floor===fs?<line key={i} x1={a.point[0]} y1={a.point[1]} x2={p.point[0]} y2={p.point[1]} stroke="#07877d" strokeWidth=".12"/>:null;})}</svg></div>}</div>;
+  apiRef.current={fit,focus:(id)=>{
+   const e=model.elements.find(e=>e.id===id);if(!e)return;const b=bounds([raw(e)]),s=Math.max(b.max[0]-b.min[0],b.max[1]-b.min[1],3),z=model.floors.find(f=>f.id===e.floor_id)!.elevation+floorOffset(model,e.floor_id,separation)+e.z_offset;
+   controls.target.set((b.min[0]+b.max[0])/2,z+1,(b.min[1]+b.max[1])/2);camera.position.copy(controls.target).add(new T.Vector3(s*.6,s*.7,s*.7));controls.update();
+  },interior:()=>{
+   const target=model.places.find(p=>(floor==='all'||p.floor_id===floor)&&p.name.includes('홀'))??model.places.find(p=>floor==='all'||p.floor_id===floor),z=model.floors.find(f=>f.id===(target?.floor_id??floor))?.elevation??base;
+   camera.position.set(target?.point[0]??cx,z+floorOffset(model,target?.floor_id??floor,separation)+1.6,target?.point[1]??cy);
+   controls.target.copy(camera.position).add(new T.Vector3(0,0,-3));camera.lookAt(controls.target);controls.update();
+  }};
+  let down:[number,number]|null=null,last:[number,number]|null=null;const keys=new Set<string>();
+  const pointerDown=(e:PointerEvent)=>{down=[e.clientX,e.clientY];last=down;if(walking){renderer.domElement.focus();renderer.domElement.setPointerCapture(e.pointerId);}};
+  const pointerMove=(e:PointerEvent)=>{if(!walking||!last||!e.buttons)return;camera.rotation.y-=(e.clientX-last[0])*.004;camera.rotation.x=T.MathUtils.clamp(camera.rotation.x-(e.clientY-last[1])*.004,-1.45,1.45);last=[e.clientX,e.clientY];};
+  const pointerUp=(e:PointerEvent)=>{
+   last=null;if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;
+   const r=renderer.domElement.getBoundingClientRect(),ray=new T.Raycaster();ray.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),camera);
+   const hits=ray.intersectObjects(selectable).filter(hit=>planes.every(p=>p.distanceToPoint(hit.point)>=0));
+   const hit=hits.find(x=>{const kind=model.elements.find(el=>el.id===x.object.userData.id)?.type;return !['floor','roof','space','corridor','elevator'].includes(kind??'');})??hits[0];if(hit)selectRef.current(hit.object.userData.id);
+  };
+  const keydown=(e:KeyboardEvent)=>{if(!walking||document.activeElement!==renderer.domElement)return;if(['w','a','s','d','q','e','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Shift'].includes(e.key)){keys.add(e.key);e.preventDefault();}},keyup=(e:KeyboardEvent)=>keys.delete(e.key),blur=()=>keys.clear();
+  renderer.domElement.addEventListener('pointerdown',pointerDown);renderer.domElement.addEventListener('pointermove',pointerMove);renderer.domElement.addEventListener('pointerup',pointerUp);renderer.domElement.addEventListener('keydown',keydown);window.addEventListener('keyup',keyup);renderer.domElement.addEventListener('blur',blur);
+  const resize=new ResizeObserver(()=>{const w=container.clientWidth,h=container.clientHeight;if(w<1||h<1)return;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);});resize.observe(container);
+  let frame=0,lastTime=performance.now();function animate(time=performance.now()){
+   const dt=Math.min((time-lastTime)/1000,.05);lastTime=time;
+   if(walking){const forward=new T.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();const right=new T.Vector3().crossVectors(forward,new T.Vector3(0,1,0)),speed=(keys.has('Shift')?5:2)*dt;
+    if(keys.has('w')||keys.has('ArrowUp'))camera.position.addScaledVector(forward,speed);if(keys.has('s')||keys.has('ArrowDown'))camera.position.addScaledVector(forward,-speed);if(keys.has('d')||keys.has('ArrowRight'))camera.position.addScaledVector(right,speed);if(keys.has('a')||keys.has('ArrowLeft'))camera.position.addScaledVector(right,-speed);if(keys.has('e'))camera.position.y+=speed;if(keys.has('q'))camera.position.y-=speed;
+   }else controls.update();renderer.render(scene,camera);frame=requestAnimationFrame(animate);
+  }animate();
+  return ()=>{
+   if(walking){const dir=new T.Vector3();camera.getWorldDirection(dir);controls.target.copy(camera.position).addScaledVector(dir,3);}
+   cameraState.current={key,position:camera.position.clone(),target:controls.target.clone()};cancelAnimationFrame(frame);resize.disconnect();controls.dispose();window.removeEventListener('keyup',keyup);
+   scene.traverse(obj=>{const mesh=obj as T.Mesh;mesh.geometry?.dispose();if(mesh.material)for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]){(mat as T.SpriteMaterial).map?.dispose();mat.dispose();}});renderer.dispose();renderer.domElement.remove();apiRef.current=null;meshesRef.current=[];
+  };
+ },[model,floor,plan,route,hideWalls,showSpaces,showLabels,showMarkers,hideRoof,assumptions,separation,section,cut,walking]);
+ useEffect(()=>{for(const mesh of meshesRef.current)(mesh.material as T.MeshStandardMaterial).color.setHex(mesh.userData.id===selected?0x22a2bd:mesh.userData.baseColor);},[selected]);
+ const fs=model.floors.find(f=>f.id===floor)?.id??model.floors[0].id;
+ const els=model.elements.filter(e=>e.floor_id===fs&&!e.excluded&&(!hideWalls||e.type!=='wall')&&(!hideRoof||e.type!=='roof')&&(!e.source.marker_width_m||showMarkers)&&(!['space','corridor'].includes(e.type)||showSpaces));
+ const b=els.length?bounds(els.map(raw)):{min:[0,0] as XY,max:[20,12] as XY};
+ return <div className="viewer-wrap"><div className="bim-view-options" aria-label="BIM 표시 옵션">
+  <button onClick={()=>{setWalking(false);apiRef.current?.fit();}}>전체 맞춤</button><button disabled={!selected||plan} onClick={()=>{setWalking(false);apiRef.current?.focus(selected);}}>선택 확대</button>
+  <button disabled={plan||fallback} className={walking?'active':''} onClick={()=>{if(!walking)apiRef.current?.interior();setWalking(!walking);}}>실내 시점{walking?' 종료':''}</button>
+  <label><input type="checkbox" checked={hideWalls} onChange={e=>setHideWalls(e.target.checked)}/>벽 숨김</label><label><input type="checkbox" checked={hideRoof} onChange={e=>setHideRoof(e.target.checked)}/>지붕 숨김</label>
+  <label><input type="checkbox" checked={showSpaces} onChange={e=>setShowSpaces(e.target.checked)}/>실 영역</label><label><input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/>실명</label><label><input type="checkbox" checked={showMarkers} onChange={e=>setShowMarkers(e.target.checked)}/>미확정 면</label>
+  <label><input type="checkbox" checked={assumptions} onChange={e=>setAssumptions(e.target.checked)}/>문·창 높이 가정 표시</label>
+  <label>층 분리 <input aria-label="층 분리 간격" type="range" min="0" max="12" step="1" value={separation} onChange={e=>setSeparation(Number(e.target.value))}/>{separation} m</label>
+  <label>단면 <select aria-label="단면 방향" value={section} onChange={e=>setSection(e.target.value)}><option value="none">없음</option><option value="x">X 방향</option><option value="y">Y 방향</option><option value="z">높이 Z</option></select></label>
+  {section!=='none'&&<input aria-label="단면 위치" type="range" min="0" max="100" value={cut} onChange={e=>setCut(Number(e.target.value))}/>}
+ </div>{assumptions&&!model.is_example&&<p className="geometry-assumption">시각화 가정: 미확정 문 높이 2.10 m · 창 높이 2.40 m / 창대 0.90 m. 저장·IFC에는 확정 치수로 반영하지 않습니다.</p>}
+ {walking&&<p className="walk-help">화면 클릭 후 WASD: 전후좌우 · Q/E: 높이 · 드래그: 둘러보기. 자유 시점이며 통행 가능 여부를 판정하지 않습니다.</p>}
+ <div className="viewer" ref={host} aria-label={`${model.name} ${plan?'평면':'3D'} 모델`}>
+ {fallback&&<div className="fallback"><p>WebGL을 사용할 수 없어 평면도로 표시합니다. 전체 층에서는 {model.floors.find(f=>f.id===fs)?.name}을 표시합니다.</p><svg viewBox={`${b.min[0]-1} ${b.min[1]-1} ${b.max[0]-b.min[0]+2} ${b.max[1]-b.min[1]+2}`} role="img" aria-label="건축물 평면도">
+  {els.map(e=><path key={e.id} d={raw(e).map(r=>'M'+r.map(p=>p.join(',')).join('L')+'Z').join(' ')} fill={e.id===selected?'#22a2bd':'#'+(colors[e.type]??0xaaaaaa).toString(16).padStart(6,'0')} fillOpacity={['space','corridor'].includes(e.type)?.3:1} fillRule="evenodd" stroke="#607982" strokeWidth=".035" onClick={()=>onSelect(e.id)}/>)}
+ </svg></div>}</div></div>;
 }

@@ -7,7 +7,7 @@ const path=new URL('../../cad_output/energy-center-model.json',import.meta.url);
 describe.skipIf(!existsSync(path))('local actual DWG reconstruction',()=>{
  it('loads actual 1F/2F model with metre coordinates and section levels',()=>{
   const model=parseModel(JSON.parse(readFileSync(path,'utf8')));validateGeometry(model);
-  expect(model.is_example).toBe(false);expect(model.floors[1].elevation).toBeCloseTo(4.2);
+  expect(model.is_example).toBe(false);expect(model.floors.find(f=>f.id==='f2')!.elevation).toBeCloseTo(4.2);
   expect(model.elements.length).toBeGreaterThan(100);expect(model.elements.some(e=>e.type==='column')).toBe(true);
   expect(model.places.some(p=>p.name.includes('사무실'))).toBe(true);
  });

@@ -3,6 +3,7 @@ import tempfile
 import threading
 import time
 import uuid
+from typing import get_args
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import Response
@@ -42,7 +43,8 @@ def project_model():
 
 @app.get('/api/project-plan/{floor}')
 def project_plan(floor:str):
-    paths={'f1':Path('cad_output/detailed-first.png'),'f2':Path('cad_output/detailed-second.png')}
+    paths={'b1':Path('cad_output/detailed-basement.png'),'f1':Path('cad_output/detailed-first.png'),'f2':Path('cad_output/detailed-second.png'),
+        'f3':Path('cad_output/detailed-third.png'),'f4':Path('cad_output/detailed-fourth.png'),'roof':Path('cad_output/detailed-roof.png')}
     path=paths.get(floor)
     if path is None or not path.is_file():raise HTTPException(404,'해당 층 원본 도면 미리보기가 없습니다.')
     return FileResponse(path,media_type='image/png')
@@ -84,7 +86,7 @@ class BuildRequest(Record):
 def build(req:BuildRequest):
     clean_cache()
     if req.token not in cache:raise HTTPException(410,'CAD 분석 세션이 만료되었습니다. 도면을 다시 업로드하세요.')
-    if any(v not in ('wall','column','floor','space','corridor','door','stair','ramp','elevator','obstacle','unclassified','ignore') for v in req.mapping.values()):
+    if any(v not in (*get_args(Kind),'ignore') for v in req.mapping.values()):
         raise HTTPException(422,'지원하지 않는 요소 분류입니다.')
     try:return build_model(cache[req.token][1],req.mapping,req.scale,req.height,req.thickness,req.floor_name,req.elevation)
     except ValueError as exc:raise HTTPException(422,str(exc)) from exc

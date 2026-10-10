@@ -33,17 +33,22 @@ def main():
     from .project_model import main as build
     from .plot_project import main as plot
     from .preview_model import main as preview
+    from .audit_drawings import main as audit
+    from .validate_ifc import main as validate_ifc
     with contextlib.redirect_stdout(io.StringIO()):inspect()
     print('2/5 단면도의 층 기준 높이를 읽습니다.',flush=True)
     cached_section=out/'section-texts.json'
     section_reuse=cached_section.exists() and json.loads(cached_section.read_text(encoding='utf-8'))['source']['sha256_before']==section_before
     if not section_reuse:
         with contextlib.redirect_stdout(io.StringIO()):read_sections()
-    print('3/5 상세 형상이 남은 지상 1·2층을 분리하고 모델을 생성합니다.',flush=True)
+    audit()
+    print('3/5 상세 형상이 남은 지하 1층·지상 1~4층과 지붕층을 분리하고 모델을 생성합니다.',flush=True)
     with contextlib.redirect_stdout(io.StringIO()):build()
     print('4/5 CAD 대조 이미지와 모델 미리보기를 생성합니다.',flush=True)
     with contextlib.redirect_stdout(io.StringIO()):plot();preview()
+    print('5/5 최종 IFC의 EXPRESS 규칙, 전체 객체 좌표·면적·체적을 검증합니다.',flush=True)
+    with contextlib.redirect_stdout(io.StringIO()):validate_ifc()
     if sha(plan)!=plan_before or sha(section)!=section_before:raise RuntimeError('처리 중 원본 도면이 변경되었습니다.')
-    print('5/5 완료: cad_output/energy-center-model.json, energy-center.ifc, energy-center-preview.png. 원본 해시 일치.',flush=True)
+    print('완료: cad_output/energy-center-model.json, energy-center.ifc, energy-center-preview.png, ifc-validation.json. 원본 해시 일치.',flush=True)
 
 if __name__=='__main__':main()

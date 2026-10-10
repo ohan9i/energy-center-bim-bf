@@ -40,7 +40,7 @@ def main():
             assert demo['is_example'] and 'wheelchair' in rules['profiles']
             if (dist/'models'/'project.json').exists():
                 project=json.loads(get(base+'models/project.json'))
-                assert not project['is_example'] and len(project['floors'])==2
+                assert not project['is_example'] and len(project['floors'])==6
                 assert project['provenance']['publication']=='github_pages'
                 assert not any(e['verified'] for e in project['elements'])
             files=list((dist/'assets').iterdir())

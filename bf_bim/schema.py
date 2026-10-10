@@ -2,7 +2,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from shapely.geometry import Polygon, Point as ShapePoint
 
-Kind = Literal['wall', 'column', 'floor', 'space', 'corridor', 'door', 'stair', 'ramp', 'elevator', 'obstacle', 'unclassified']
+Kind = Literal['wall', 'column', 'beam', 'floor', 'roof', 'window', 'opening', 'space', 'corridor', 'door', 'stair', 'ramp', 'elevator', 'obstacle', 'unclassified']
 Point = tuple[float, float]
 
 class Record(BaseModel):
@@ -13,6 +13,21 @@ class Properties(Record):
     step: float | None = Field(None, ge=0, le=100)
     slope: float | None = Field(None, ge=0, le=10)
     operational: bool | None = None
+
+class Component(Record):
+    """Measured assembly geometry in model XY, Z relative to the parent base."""
+    role: str
+    polygon: list[Point] = Field(min_length=3, max_length=2000)
+    holes: list[list[Point]] = []
+    height: float | None = Field(None, gt=0, le=100)
+    z_offset: float = 0
+    source: dict = {}
+
+    @model_validator(mode='after')
+    def valid_geometry(self):
+        if not Polygon(self.polygon, self.holes).is_valid or Polygon(self.polygon, self.holes).area < 1e-8:
+            raise ValueError('조립체 구성요소의 다각형이 유효하지 않습니다.')
+        return self
 
 class Element(Record):
     id: str = Field(min_length=1, max_length=160)
@@ -27,6 +42,7 @@ class Element(Record):
     excluded: bool = False
     properties: Properties = Properties()
     source: dict = {}
+    components: list[Component] = Field(default_factory=list, max_length=500)
 
     @model_validator(mode='after')
     def valid_polygon(self):

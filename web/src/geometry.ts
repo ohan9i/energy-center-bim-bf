@@ -28,7 +28,7 @@ export function floorRegion(m:Model,floor:string):Multi{
  return floors.length?pc.union(...floors.map(raw) as [Poly,...Poly[]]) as Multi:[];
 }
 export function bounds(region:Multi){const p=region.flat(2);return {min:[Math.min(...p.map(x=>x[0])),Math.min(...p.map(x=>x[1]))] as XY,max:[Math.max(...p.map(x=>x[0])),Math.max(...p.map(x=>x[1]))] as XY};}
-export function validateGeometry(m:Model){for(const e of m.elements){for(const ring of [e.polygon,...e.holes]){const es=edges(ring);if(es.length<3||Math.abs(ring.reduce((n,a,i)=>n+a[0]*ring[(i+1)%ring.length][1]-ring[(i+1)%ring.length][0]*a[1],0))<EPS)throw Error(e.id+': 면적이 없는 다각형입니다.');for(let i=0;i<es.length;i++)for(let j=i+2;j<es.length;j++){if(i===0&&j===es.length-1)continue;if(intersects(...es[i],...es[j]))throw Error(e.id+': 자기교차 다각형입니다.');}}
+export function validateGeometry(m:Model){for(const e of m.elements.flatMap(e=>[e,...e.components.map((c,i)=>({...e,...c,id:e.id+'/component/'+i,components:[]}))])){for(const ring of [e.polygon,...e.holes]){const es=edges(ring);if(es.length<3||Math.abs(ring.reduce((n,a,i)=>n+a[0]*ring[(i+1)%ring.length][1]-ring[(i+1)%ring.length][0]*a[1],0))<EPS)throw Error(e.id+': 면적이 없는 다각형입니다.');for(let i=0;i<es.length;i++)for(let j=i+2;j<es.length;j++){if(i===0&&j===es.length-1)continue;if(intersects(...es[i],...es[j]))throw Error(e.id+': 자기교차 다각형입니다.');}}
  const ringArea=(r:XY[])=>Math.abs(r.reduce((n,a,i)=>n+a[0]*r[(i+1)%r.length][1]-r[(i+1)%r.length][0]*a[1],0))/2;
  const area=(multi:Multi)=>multi.reduce((n,p)=>n+ringArea(p[0])-p.slice(1).reduce((v,r)=>v+ringArea(r),0),0);
  // A hole may touch a boundary at a single point (valid OGC polygon). Require

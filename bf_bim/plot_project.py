@@ -20,7 +20,8 @@ def segments(e):
 def main():
     es=json.loads(Path('cad_output/scene-compact.json').read_text(encoding='utf-8'))
     plt.rcParams['font.family']='Malgun Gothic'
-    for name,box in [('detailed-first',(32920000,33020000,-5730000,-5640000)),('detailed-second',(33046000,33146000,-5730000,-5640000)),('alternate-first',(32920000,33020000,-5910000,-5800000))]:
+    from .project_model import SHEET_SPACING
+    for name,box in [(name,(32920000+(i-1)*SHEET_SPACING,33020000+(i-1)*SHEET_SPACING,-5730000,-5640000)) for i,name in enumerate(('detailed-basement','detailed-first','detailed-second','detailed-third','detailed-fourth','detailed-roof'))]+[('alternate-first',(32920000,33020000,-5910000,-5800000))]:
         x1,x2,y1,y2=box
         use=[e for e in es if e.get('bounds') and e['bounds']['min'][0]>=x1 and e['bounds']['max'][0]<=x2 and e['bounds']['min'][1]>=y1 and e['bounds']['max'][1]<=y2]
         fig,ax=plt.subplots(figsize=(18,12 if name!='overview' else 4));lines=[];doors=[]

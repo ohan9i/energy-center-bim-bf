@@ -67,7 +67,7 @@ def paired_wall_faces(records):
             unmatched.append((line.buffer(.005,cap_style=2),src))
     return paired,solids,unmatched
 
-def main():
+def legacy_main():
     es=json.loads((OUT/'scene-compact.json').read_text(encoding='utf-8'))
     inventory=json.loads((OUT/'project-inventory.json').read_text(encoding='utf-8'))
     sections=json.loads((OUT/'section-texts.json').read_text(encoding='utf-8'))
@@ -192,5 +192,9 @@ def main():
         'floor_reports':floor_report,'places':[p.model_dump() for p in model.places], 'level_evidence':[level1,level2]}
     (OUT/'energy-center-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(report,ensure_ascii=False,indent=2))
+
+def main():
+    from .precision_model import main as precision_main
+    precision_main()
 
 if __name__=='__main__':main()

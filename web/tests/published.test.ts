@@ -8,8 +8,12 @@ const input=readFileSync(new URL('../public/models/project.json',import.meta.url
 describe('published actual project model',()=>{
  it('retains both actual floors and geometry without local paths',()=>{
   const m=parseModel(JSON.parse(input));validateGeometry(m);
-  expect(m.is_example).toBe(false);expect(m.elements).toHaveLength(820);
-  expect(m.floors.map(f=>f.elevation)).toEqual([0,expect.closeTo(4.2)]);
+  expect(m.is_example).toBe(false);expect(m.elements.length).toBeGreaterThan(820);
+  expect(m.floors.map(f=>f.elevation)).toEqual([expect.closeTo(-3.9),0,expect.closeTo(4.2),expect.closeTo(8.4),expect.closeTo(12.6),expect.closeTo(16.8)]);
+  expect(m.elements.some(e=>e.type==='window')).toBe(true);
+  expect(m.elements.some(e=>e.type==='space')).toBe(true);
+  expect(m.elements.filter(e=>e.type==='stair'&&e.floor_id==='f1')).toHaveLength(2);
+  expect(m.elements.filter(e=>e.type==='stair').every(e=>e.components.length>10)).toBe(true);
   expect(m.provenance.publication).toBe('github_pages');
   expect(input).not.toMatch(/[A-Z]:[\\/]/);
  });

@@ -49,6 +49,9 @@ def test_api_upload_build_ifc_and_errors(tmp_path):
     r=client.post('/api/cad/analyze',files={'file':('fixture.dxf',path.read_bytes())});assert r.status_code==200
     token=r.json()['token'];result=client.post('/api/cad/build',json={'token':token,'mapping':{},'height':3,'thickness':.2})
     assert result.status_code==200
+    mapped=client.post('/api/cad/build',json={'token':token,'mapping':{'A-FLOOR':'roof','A-WALL':'window','A-DOOR':'ignore'},'height':3,'thickness':.2})
+    assert mapped.status_code==200
+    assert {e['type'] for e in mapped.json()['elements']}=={'roof','window'}
     assert client.post('/api/ifc',json=result.json()).status_code==200
     assert client.get(f'/api/cad/{token}/report').status_code==200
     assert client.post('/api/cad/build',json={'token':'missing','mapping':{},'height':3,'thickness':.2}).status_code==410
