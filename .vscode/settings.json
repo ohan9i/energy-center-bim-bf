@@ -1,0 +1,5 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv-cad/Scripts/python.exe",
+  "files.exclude": {"**/__pycache__": true, ".venv-cad": true},
+  "search.exclude": {".venv-cad": true, "cad_output": true}
+}

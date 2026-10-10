@@ -1,0 +1,1028 @@
+{
+  "schema_version": "1.0",
+  "id": "demo-two-storey",
+  "name": "공간이음 교육관 · 2층 예제",
+  "units": "m",
+  "is_example": true,
+  "revision": 0,
+  "floors": [
+    {
+      "id": "f1",
+      "name": "1층",
+      "elevation": 0.0
+    },
+    {
+      "id": "f2",
+      "name": "2층",
+      "elevation": 3.3
+    }
+  ],
+  "elements": [
+    {
+      "id": "f1-floor",
+      "name": "바닥",
+      "type": "floor",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          20.0,
+          0.0
+        ],
+        [
+          20.0,
+          12.0
+        ],
+        [
+          0.0,
+          12.0
+        ]
+      ],
+      "holes": [],
+      "height": 0.15,
+      "z_offset": -0.15,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": 0.0,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-wall-남측",
+      "name": "남측 벽체",
+      "type": "wall",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          20.0,
+          0.0
+        ],
+        [
+          20.0,
+          0.2
+        ],
+        [
+          0.0,
+          0.2
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-wall-북측",
+      "name": "북측 벽체",
+      "type": "wall",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          0.0,
+          11.8
+        ],
+        [
+          20.0,
+          11.8
+        ],
+        [
+          20.0,
+          12.0
+        ],
+        [
+          0.0,
+          12.0
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-wall-서측",
+      "name": "서측 벽체",
+      "type": "wall",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.2,
+          0.0
+        ],
+        [
+          0.2,
+          12.0
+        ],
+        [
+          0.0,
+          12.0
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-wall-동측",
+      "name": "동측 벽체",
+      "type": "wall",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          19.8,
+          0.0
+        ],
+        [
+          20.0,
+          0.0
+        ],
+        [
+          20.0,
+          12.0
+        ],
+        [
+          19.8,
+          12.0
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-wall-강의실 칸막이",
+      "name": "강의실 칸막이 벽체",
+      "type": "wall",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          0.0,
+          6.0
+        ],
+        [
+          20.0,
+          6.0
+        ],
+        [
+          20.0,
+          6.2
+        ],
+        [
+          0.0,
+          6.2
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-door-class",
+      "name": "강의실 출입문",
+      "type": "door",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          8.3,
+          5.8
+        ],
+        [
+          9.7,
+          5.8
+        ],
+        [
+          9.7,
+          6.4
+        ],
+        [
+          8.3,
+          6.4
+        ]
+      ],
+      "holes": [],
+      "height": 2.1,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": 1.1,
+        "step": 0.0,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-column",
+      "name": "구조 기둥",
+      "type": "column",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          10.0,
+          3.0
+        ],
+        [
+          10.7,
+          3.0
+        ],
+        [
+          10.7,
+          3.7
+        ],
+        [
+          10.0,
+          3.7
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-room",
+      "name": "강의실",
+      "type": "space",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          0.3,
+          6.3
+        ],
+        [
+          19.7,
+          6.3
+        ],
+        [
+          19.7,
+          11.7
+        ],
+        [
+          0.3,
+          11.7
+        ]
+      ],
+      "holes": [],
+      "height": null,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f1-corridor",
+      "name": "로비 · 복도",
+      "type": "corridor",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          0.3,
+          0.3
+        ],
+        [
+          19.7,
+          0.3
+        ],
+        [
+          19.7,
+          5.9
+        ],
+        [
+          0.3,
+          5.9
+        ]
+      ],
+      "holes": [],
+      "height": null,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-floor",
+      "name": "바닥",
+      "type": "floor",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          20.0,
+          0.0
+        ],
+        [
+          20.0,
+          12.0
+        ],
+        [
+          0.0,
+          12.0
+        ]
+      ],
+      "holes": [],
+      "height": 0.15,
+      "z_offset": -0.15,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": 0.0,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-wall-남측",
+      "name": "남측 벽체",
+      "type": "wall",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          20.0,
+          0.0
+        ],
+        [
+          20.0,
+          0.2
+        ],
+        [
+          0.0,
+          0.2
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-wall-북측",
+      "name": "북측 벽체",
+      "type": "wall",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          0.0,
+          11.8
+        ],
+        [
+          20.0,
+          11.8
+        ],
+        [
+          20.0,
+          12.0
+        ],
+        [
+          0.0,
+          12.0
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-wall-서측",
+      "name": "서측 벽체",
+      "type": "wall",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.2,
+          0.0
+        ],
+        [
+          0.2,
+          12.0
+        ],
+        [
+          0.0,
+          12.0
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-wall-동측",
+      "name": "동측 벽체",
+      "type": "wall",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          19.8,
+          0.0
+        ],
+        [
+          20.0,
+          0.0
+        ],
+        [
+          20.0,
+          12.0
+        ],
+        [
+          19.8,
+          12.0
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-wall-강의실 칸막이",
+      "name": "강의실 칸막이 벽체",
+      "type": "wall",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          0.0,
+          6.0
+        ],
+        [
+          20.0,
+          6.0
+        ],
+        [
+          20.0,
+          6.2
+        ],
+        [
+          0.0,
+          6.2
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-door-class",
+      "name": "강의실 출입문",
+      "type": "door",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          8.3,
+          5.8
+        ],
+        [
+          9.7,
+          5.8
+        ],
+        [
+          9.7,
+          6.4
+        ],
+        [
+          8.3,
+          6.4
+        ]
+      ],
+      "holes": [],
+      "height": 2.1,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": 1.1,
+        "step": 0.0,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-column",
+      "name": "구조 기둥",
+      "type": "column",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          10.0,
+          3.0
+        ],
+        [
+          10.7,
+          3.0
+        ],
+        [
+          10.7,
+          3.7
+        ],
+        [
+          10.0,
+          3.7
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-room",
+      "name": "강의실",
+      "type": "space",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          0.3,
+          6.3
+        ],
+        [
+          19.7,
+          6.3
+        ],
+        [
+          19.7,
+          11.7
+        ],
+        [
+          0.3,
+          11.7
+        ]
+      ],
+      "holes": [],
+      "height": null,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "f2-corridor",
+      "name": "로비 · 복도",
+      "type": "corridor",
+      "floor_id": "f2",
+      "polygon": [
+        [
+          0.3,
+          0.3
+        ],
+        [
+          19.7,
+          0.3
+        ],
+        [
+          19.7,
+          5.9
+        ],
+        [
+          0.3,
+          5.9
+        ]
+      ],
+      "holes": [],
+      "height": null,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": null,
+        "step": null,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "main-door",
+      "name": "정문",
+      "type": "door",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          1.1,
+          -0.2
+        ],
+        [
+          2.9,
+          -0.2
+        ],
+        [
+          2.9,
+          0.4
+        ],
+        [
+          1.1,
+          0.4
+        ]
+      ],
+      "holes": [],
+      "height": 2.1,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": 1.5,
+        "step": 0.0,
+        "slope": null,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "stairs",
+      "name": "계단 · 1↔2층",
+      "type": "stair",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          3.0,
+          3.8
+        ],
+        [
+          5.0,
+          3.8
+        ],
+        [
+          5.0,
+          5.4
+        ],
+        [
+          3.0,
+          5.4
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": 1.2,
+        "step": 0.16,
+        "slope": 0.6,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "lift",
+      "name": "승강기 · 1↔2층",
+      "type": "elevator",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          16.0,
+          3.8
+        ],
+        [
+          18.0,
+          3.8
+        ],
+        [
+          18.0,
+          5.4
+        ],
+        [
+          16.0,
+          5.4
+        ]
+      ],
+      "holes": [],
+      "height": 3.0,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": 1.1,
+        "step": 0.0,
+        "slope": null,
+        "operational": true
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    },
+    {
+      "id": "ramp",
+      "name": "완만한 로비 경사로",
+      "type": "ramp",
+      "floor_id": "f1",
+      "polygon": [
+        [
+          5.0,
+          1.2
+        ],
+        [
+          8.0,
+          1.2
+        ],
+        [
+          8.0,
+          2.8
+        ],
+        [
+          5.0,
+          2.8
+        ]
+      ],
+      "holes": [],
+      "height": 0.25,
+      "z_offset": 0.0,
+      "verified": true,
+      "excluded": false,
+      "properties": {
+        "clear_width": 1.6,
+        "step": 0.0,
+        "slope": 0.04,
+        "operational": null
+      },
+      "source": {
+        "origin": "synthetic"
+      }
+    }
+  ],
+  "places": [
+    {
+      "id": "entrance",
+      "name": "1층 정문",
+      "floor_id": "f1",
+      "point": [
+        2.0,
+        1.0
+      ]
+    },
+    {
+      "id": "lobby",
+      "name": "1층 로비",
+      "floor_id": "f1",
+      "point": [
+        9.0,
+        2.0
+      ]
+    },
+    {
+      "id": "class1",
+      "name": "1층 강의실",
+      "floor_id": "f1",
+      "point": [
+        6.0,
+        9.0
+      ]
+    },
+    {
+      "id": "class2",
+      "name": "2층 강의실",
+      "floor_id": "f2",
+      "point": [
+        6.0,
+        9.0
+      ]
+    },
+    {
+      "id": "stair-f1",
+      "name": "1층 계단",
+      "floor_id": "f1",
+      "point": [
+        4.0,
+        4.5
+      ]
+    },
+    {
+      "id": "stair-f2",
+      "name": "2층 계단",
+      "floor_id": "f2",
+      "point": [
+        4.0,
+        4.5
+      ]
+    },
+    {
+      "id": "lift-f1",
+      "name": "1층 승강기",
+      "floor_id": "f1",
+      "point": [
+        17.0,
+        4.5
+      ]
+    },
+    {
+      "id": "lift-f2",
+      "name": "2층 승강기",
+      "floor_id": "f2",
+      "point": [
+        17.0,
+        4.5
+      ]
+    }
+  ],
+  "links": [
+    {
+      "id": "link-stair",
+      "element_id": "stairs",
+      "from_place": "stair-f1",
+      "to_place": "stair-f2",
+      "distance": 5.8
+    },
+    {
+      "id": "link-lift",
+      "element_id": "lift",
+      "from_place": "lift-f1",
+      "to_place": "lift-f2",
+      "distance": 3.3
+    }
+  ],
+  "warnings": [
+    "실제 건축 도면이 아닌 경로 탐색 검증용 예제입니다. 모든 치수는 테스트 입력값입니다."
+  ],
+  "provenance": {}
+}

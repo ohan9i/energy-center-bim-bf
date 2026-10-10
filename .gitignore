@@ -1,0 +1,15 @@
+.venv-cad/
+.tools/
+__pycache__/
+*.pyc
+cad_output/
+에너지-건축도면/
+에너지-건축도면-2022.9.02/
+*.dwg
+*.dwl
+*.dwl2
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+.pytest_cache/
+.runtime/
