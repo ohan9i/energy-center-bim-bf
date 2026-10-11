@@ -9,7 +9,11 @@ export function pointSegment(p:XY,a:XY,b:XY){const dx=b[0]-a[0],dy=b[1]-a[1];con
 export function intersects(a:XY,b:XY,c:XY,d:XY){
   if(Math.max(a[0],b[0])+EPS<Math.min(c[0],d[0])||Math.max(c[0],d[0])+EPS<Math.min(a[0],b[0])||Math.max(a[1],b[1])+EPS<Math.min(c[1],d[1])||Math.max(c[1],d[1])+EPS<Math.min(a[1],b[1])) return false;
   const x=cross(a,b,c),y=cross(a,b,d),u=cross(c,d,a),v=cross(c,d,b);
-  return x*y<=EPS&&u*v<=EPS;
+  // Products of cross products have units m^4: comparing them to a linear
+  // epsilon falsely labels close, parallel edges as intersections. Test
+  // strict straddling, then use the distance tolerance for endpoint contact.
+  if (((x>0&&y<0)||(x<0&&y>0))&&((u>0&&v<0)||(u<0&&v>0))) return true;
+  return pointSegment(c,a,b)<=EPS||pointSegment(d,a,b)<=EPS||pointSegment(a,c,d)<=EPS||pointSegment(b,c,d)<=EPS;
 }
 export function segmentDistance(a:XY,b:XY,c:XY,d:XY){return intersects(a,b,c,d)?0:Math.min(pointSegment(a,c,d),pointSegment(b,c,d),pointSegment(c,a,b),pointSegment(d,a,b));}
 export function edges(r:XY[]){return r.map((p,i)=>[p,r[(i+1)%r.length]] as [XY,XY]).filter(([a,b])=>dist(a,b)>EPS);}

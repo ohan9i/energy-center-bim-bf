@@ -43,6 +43,15 @@ def main():
                 assert not project['is_example'] and len(project['floors'])==6
                 assert project['provenance']['publication']=='github_pages'
                 assert not any(e['verified'] for e in project['elements'])
+            if (dist/'models'/'precision-rebuild.json').exists():
+                content=get(base+'models/precision-rebuild.json').decode('utf-8')
+                coordination=json.loads(content)
+                assert coordination['provenance']['coordination_draft'] is True
+                assert coordination['provenance']['verified_solids']==0
+                assert not any(e['verified'] for e in coordination['elements'])
+                assert not re.search(r'[A-Z]:[\\/]',content), 'Local path found in published model'
+                for name in ('precision-rebuild-verified.ifc','precision-rebuild-coordination-draft.ifc'):
+                    assert get(base+'models/'+name).startswith(b'ISO-10303-21;'), 'Invalid IFC download'
             files=list((dist/'assets').iterdir())
             for file in files:get(base+'assets/'+file.name)
             workers=[p for p in files if p.name.startswith('route.worker-')]

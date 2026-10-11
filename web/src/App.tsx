@@ -29,6 +29,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import Viewer from "./Viewer";
+import PrecisionReview from "./PrecisionReview";
 import BimInspector from "./BimInspector";
 import ObjectExplorer from "./ObjectExplorer";
 import { loadModelRecords, saveModelRecord } from "./modelStorage";
@@ -81,6 +82,7 @@ function checkedModel(data: unknown) {
   return m;
 }
 export default function App() {
+  const [precisionOpen, setPrecisionOpen] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [model, setModel] = useState<Model | null>(null),
     [library, setLibrary] = useState<Model[]>([]),
@@ -226,11 +228,13 @@ export default function App() {
     );
   }
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       request(base + "models/demo.json").then((r) => r.json()),
       request(base + "rules.json").then((r) => r.json()),
     ])
       .then(async ([data, r]) => {
+        if (cancelled) return;
         const demo = checkedModel(data);
         let savedModel: Model | null = null;
         setRules(r);
@@ -238,6 +242,7 @@ export default function App() {
         setLibrary([demo]);
         activate(demo);
         const records = await loadModelRecords();
+        if (cancelled) return;
         try {
           if (records.current) {
             const m = checkedModel(JSON.parse(records.current));
@@ -263,6 +268,7 @@ export default function App() {
           } catch {}
         });
         const openProject = (data: unknown) => {
+          if (cancelled) return;
           const m = checkedModel(data);
           let current = savedModel?.id === m.id ? savedModel : m;
           if (
@@ -295,7 +301,20 @@ export default function App() {
             .then((r) => r.json())
             .then(openProject)
             .catch(() => {})
-            .finally(() => setInitializing(false));
+            .finally(loadRebuild);
+        const loadRebuild = async () => {
+          // The legacy project remains in the model library for comparison.
+          // Open the current coordination model in both local and public builds.
+          try {
+            const m = checkedModel(await request(base + "models/precision-rebuild.json").then(r => r.json()));
+            if (cancelled) return;
+            openProject(m);
+            setMessage("새 도면 기반 모델을 열었습니다. 미확정 3D 외피는 검증 BIM과 구분됩니다.");
+          } catch {
+            if (!cancelled) setMessage("새 재구축 자료를 불러오지 못해 기존 모델을 유지합니다.");
+          }
+          if (!cancelled) setInitializing(false);
+        };
         if (editing) {
           request("/api/health")
             .then((r) => r.json())
@@ -307,14 +326,14 @@ export default function App() {
           request("/api/project-model")
             .then((r) => r.json())
             .then(openProject)
-            .then(() => setInitializing(false))
+            .then(loadRebuild)
             .catch(loadPublished);
         } else {
           loadPublished();
         }
       })
       .catch(fail);
-    return () => worker.current?.terminate();
+    return () => { cancelled = true; worker.current?.terminate(); };
   }, []);
   useEffect(() => {
     setRoute(null);
@@ -417,10 +436,17 @@ export default function App() {
       fail(e);
     }
   }
-  async function exportIFC() {
+  async function exportIFC(draft = false) {
     if (!model) return;
     setBusy(true);
     try {
+      if (model.provenance.precision_rebuild) {
+        const r = await request(base + (draft ? "models/precision-rebuild-coordination-draft.ifc" : "models/precision-rebuild-verified.ifc"));
+        download(await r.text(), draft ? "energy-center-Coordination-Draft.ifc" : "energy-center-Verified.ifc", "application/x-step");
+        setMessage(draft ? "검토용 Draft IFC를 저장했습니다. 미확정 입체와 적용 가정이 포함되며 설계 검증 완료 BIM이 아닙니다." : "검증 형상 IFC를 저장했습니다. 현재 검증된 입체 부재는 0개이며 층 공간 구조만 포함됩니다.");
+        setBusy(false);
+        return;
+      }
       const r = await request("/api/ifc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -611,6 +637,8 @@ export default function App() {
           </span>
         </div>
         <div className="header-actions">
+          {editing && <button className="icon-button" aria-label="정밀 1층 검토" onClick={() => setPrecisionOpen(true)}>정밀 1층</button>}
+          {precisionOpen && <PrecisionReview onClose={() => setPrecisionOpen(false)} />}
           <span className="model-state">
             <i />
             {model.is_example ? "예제 모델" : "도면 기반 모델"}
@@ -682,13 +710,16 @@ export default function App() {
                 <span>JSON</span>
               </button>
               <button
-                disabled={!api || busy}
-                onClick={exportIFC}
-                title="IFC 생성에는 로컬 Python 서버가 필요합니다."
+                disabled={(!api && !model.provenance.precision_rebuild) || busy}
+                onClick={() => exportIFC()}
+                title={model.provenance.precision_rebuild ? "미확정 입체를 제외한 IFC 다운로드 · 현재 층 공간 구조만 포함" : "IFC 생성에는 로컬 Python 서버가 필요합니다."}
               >
                 <Download size={15} />
                 <span>IFC</span>
               </button>
+              {Boolean(model.provenance.coordination_draft) && <button disabled={busy} onClick={() => exportIFC(true)} title="미확정 입체와 가정을 포함한 검토용 IFC">
+                <Download size={15} /><span>Draft IFC</span>
+              </button>}
             </div>
           )}
           <button

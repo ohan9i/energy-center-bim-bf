@@ -200,8 +200,31 @@ export default function BimInspector({
                         item.source.height_source ?? "구성요소별 근거 확인",
                       )}
                 </dd>
+                {Boolean(model.provenance.precision_rebuild) && (
+                  <>
+                    <dt>평면 CAD 객체</dt>
+                    <dd>{Array.isArray(item.source.cad_ids) ? (item.source.cad_ids as string[]).join(", ") : "미확인"}</dd>
+                    <dt>미확정 정보</dt>
+                    <dd>{Array.isArray(item.source.unknowns) ? (item.source.unknowns as string[]).join(", ") : "부재 상세 확인 필요"}</dd>
+                    <dt>검증 입체 여부</dt>
+                    <dd>{model.provenance.coordination_draft ? "미확정 · Draft IFC 포함 / Verified IFC 제외" : "미확정 · IFC 입체에서 제외"}</dd>
+                  </>
+                )}
               </dl>
             </details>
+            {item.source.validation_status !== undefined && <details className="fact-section" open>
+              <summary>검증 상태 · 적용 가정</summary>
+              <dl className="bim-facts">
+                <dt>부재 상태</dt><dd>{String(item.source.validation_status)}</dd>
+                {Object.entries((item.source.property_status ?? {}) as Record<string,string>).map(([key,value])=>
+                  <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}
+              </dl>
+              <p>재료 색상은 미확정 분류의 시각화이며 설계 마감 확정값이 아닙니다.</p>
+              <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.assumptions ?? {}, null, 2)}</pre>
+              <details><summary>구성요소별 적용 치수</summary>
+                <pre style={{whiteSpace:"pre-wrap",fontSize:12}}>{JSON.stringify(item.source.applied_dimensions ?? {},null,2)}</pre>
+              </details>
+            </details>}
             {item.source.assembly_status !== undefined && (
               <details>
                 <summary>임시 조립체 치수 · 도면 검증 전</summary>

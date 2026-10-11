@@ -7,6 +7,7 @@ import { bounds, raw } from "./geometry";
 import type { RouteResult } from "./navigation";
 import { renderPieces, floorOffset, createRenderContext } from "./bimGeometry";
 import { pieceGeometry, sectionCap, wallEdges } from "./architecturalGeometry";
+import { interiorView } from "./interiorView";
 import {
   batchElementMeshes,
   batchEdges,
@@ -76,7 +77,7 @@ export default function Viewer({
   const [hideWalls, setHideWalls] = useState(false),
     [showSpaces, setShowSpaces] = useState(false),
     [showLabels, setShowLabels] = useState(false),
-    [showMarkers, setShowMarkers] = useState(false),
+    [showMarkers, setShowMarkers] = useState(Boolean(model.provenance.precision_rebuild)),
     [hideRoof, setHideRoof] = useState(false),
     [assumptions, setAssumptions] = useState(true),
     [separation, setSeparation] = useState(0),
@@ -94,9 +95,11 @@ export default function Viewer({
     [doorOpen, setDoorOpen] = useState(0),
     [viewDirection, setViewDirection] = useState("building");
   const [pickedPart, setPickedPart] = useState("");
+  const [evidenceMode, setEvidenceMode] = useState("full");
   const [showGround, setShowGround] = useState(true);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   useEffect(() => setHiddenIds([]), [model.id]);
+  useEffect(() => setShowMarkers(Boolean(model.provenance.precision_rebuild)), [model.id]);
   const isolationKey = isolated ? selected : "";
   const toolsHost = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -170,6 +173,9 @@ export default function Viewer({
     const visible = model.elements.filter(
       (e) =>
         !e.excluded &&
+        (!e.source.unresolved_plan_only || evidenceMode === "drawing") &&
+        (evidenceMode !== "verified" || e.source.validation_status === "verified") &&
+        (evidenceMode !== "drawing" || e.source.geometry_status === "measured_plan" || Boolean(e.source.precision_member_id)) &&
         !hiddenIds.includes(e.id) &&
         (floor === "all" || e.floor_id === floor) &&
         (!isolationKey || e.id === isolationKey),
@@ -178,11 +184,16 @@ export default function Viewer({
     const piecesByElement = new Map(
       visible.map((e) => [
         e.id,
-        renderPieces(e, model, assumptions, doorOpen / 100, renderContext),
+        renderPieces(e, model, assumptions && evidenceMode !== "drawing", doorOpen / 100, renderContext),
       ]),
     );
-    const extent = visible.length
-      ? bounds(visible.map(raw))
+    const nativeTraces = model.provenance.cad_traces as {floor_id:string;kind:string;points:XY[]}[] | undefined;
+    renderer.domElement.dataset.evidenceMode = evidenceMode;
+    renderer.domElement.dataset.displayedElements = String(visible.length);
+    const visibleTraces = (nativeTraces ?? []).filter(t => evidenceMode !== "verified" &&
+      (!model.provenance.coordination_draft || evidenceMode === "drawing") && (floor === "all" || t.floor_id === floor) && !isolationKey);
+    const extent = visible.length || visibleTraces.length
+      ? bounds([...visible.map(raw), ...visibleTraces.map(t => [t.points])])
       : { min: [0, 0] as XY, max: [20, 12] as XY };
     const cx = (extent.min[0] + extent.max[0]) / 2,
       cy = (extent.min[1] + extent.max[1]) / 2,
@@ -233,7 +244,7 @@ export default function Viewer({
         ),
       );
     let renderedBounds: T.Box3 | null = null;
-    let fitMeshes: T.Mesh[] = [];
+    let fitMeshes: (T.Mesh | T.LineSegments)[] = [];
     const fit = () => {
       const box =
         renderedBounds ??
@@ -376,6 +387,26 @@ export default function Viewer({
     }
     let selectable: T.Mesh[] = [];
     const edgeObjects: T.LineSegments[] = [];
+    const traces = visibleTraces;
+    const traceGroups = new Map<string,number[]>();
+    for (const t of traces ?? []) {
+      if ((floor !== "all" && t.floor_id !== floor) || isolationKey ||
+          (hideWalls && ["wall","finish"].includes(t.kind)) || (hideRoof && t.kind === "roof_trace")) continue;
+      const elevation = (model.floors.find(f => f.id === t.floor_id)?.elevation ?? 0) + floorOffset(model,t.floor_id,separation) + .003;
+      const positions = traceGroups.get(t.kind) ?? [];
+      for (let i=1;i<t.points.length;i++) {
+        const a=t.points[i-1],b=t.points[i];
+        positions.push(a[0],elevation,a[1],b[0],elevation,b[1]);
+      }
+      traceGroups.set(t.kind,positions);
+    }
+    for (const [kind,positions] of traceGroups) {
+      const geometry = new T.BufferGeometry();
+      geometry.setAttribute("position",new T.Float32BufferAttribute(positions,3));
+      const lines = new T.LineSegments(geometry,new T.LineBasicMaterial({color:kind === "door" ? 0x94662d : kind === "window" ? 0x1485af : kind === "stair" ? 0x8d567b : 0x657783,clippingPlanes:planes}));
+      scene.add(lines);edgeObjects.push(lines);
+    }
+    renderer.domElement.dataset.nativeTraceSegments = String([...traceGroups.values()].reduce((n,v)=>n+v.length/6,0));
     for (const e of visible) {
       const marker = Boolean(e.source.marker_width_m),
         space = ["space", "corridor"].includes(e.type);
@@ -414,7 +445,8 @@ export default function Viewer({
               "depth_reveal",
             ].includes(piece.role),
         );
-        const color = marker
+        const color = evidenceMode === "highlight" && (piece.assumed || e.source.validation_status === "provisional")
+          ? 0xeaa335 : marker
           ? 0xd29c47
           : metal
             ? 0x485e69
@@ -562,12 +594,16 @@ export default function Viewer({
     }
     selectable = batchElementMeshes(selectable, scene);
     batchEdges(edgeObjects, scene);
+    const batchedLines = model.provenance.precision_rebuild
+      ? scene.children.filter((child): child is T.LineSegments => child instanceof T.LineSegments && child !== grid)
+      : [];
     const capCount = selectable.filter(
       (m) => m.userData.role === "section_cap",
     ).length;
     renderedBounds = new T.Box3();
     for (const mesh of selectable) renderedBounds.expandByObject(mesh);
-    fitMeshes = selectable;
+    for (const lines of batchedLines) renderedBounds.expandByObject(lines);
+    fitMeshes = [...selectable, ...batchedLines];
     if (renderedBounds.isEmpty()) renderedBounds = null;
     if (saved?.key !== key) fit();
     meshesRef.current = selectable;
@@ -675,6 +711,13 @@ export default function Viewer({
         needsRender.current = true;
       },
       interior: () => {
+        const viewpoint=interiorView(model,floor,selectedRef.current);
+        if(viewpoint){
+          const z=model.floors.find(f=>f.id===viewpoint.floorId)!.elevation+floorOffset(model,viewpoint.floorId,separation);
+          camera.position.set(viewpoint.point[0],z+1.6,viewpoint.point[1]);
+          controls.target.copy(camera.position).add(new T.Vector3(viewpoint.direction[0]*3,0,viewpoint.direction[1]*3));
+          camera.lookAt(controls.target);controls.update();needsRender.current=true;return;
+        }
         const target =
             model.places.find(
               (p) =>
@@ -878,6 +921,7 @@ export default function Viewer({
     showMarkers,
     hideRoof,
     assumptions,
+    evidenceMode,
     separation,
     section,
     cut,
@@ -1017,6 +1061,15 @@ export default function Viewer({
               <Settings2 size={16} />
               모델 표시
             </h3>
+            {Boolean(model.provenance.precision_rebuild) && <label>
+              <span>검증 상태 표시</span>
+              <select aria-label="검증 상태 표시" value={evidenceMode} onChange={e=>setEvidenceMode(e.target.value)}>
+                <option value="full">전체 3D 모델</option>
+                <option value="drawing">도면 기반 형상만</option>
+                <option value="verified">검증 완료 부재만</option>
+                <option value="highlight">미확정 형상 강조</option>
+              </select>
+            </label>}
             <label>
               <span>벽체 표시</span>
               <input
@@ -1231,15 +1284,19 @@ export default function Viewer({
           {hiddenIds.length}개 숨김 · 모두 표시
         </button>
       )}
-      {assumptions && !model.is_example && (
+      {evidenceMode === "verified" && model.provenance.verified_solids === 0 && <div className="viewer-assumption-note">
+        검증 완료 입체 부재가 0개입니다. 전체 3D 모델에서 도면 기반 검토 형상을 확인하세요.
+      </div>}
+      {assumptions && !model.is_example && evidenceMode !== "verified" && (
         <details className="viewer-caution">
           <summary>
             <TriangleAlert size={14} />
-            임시 치수 포함 · 도면 검토 필요
+            {model.provenance.coordination_draft ? "통합 3D Coordination Draft · 검증 입체 0개" : model.provenance.precision_rebuild ? "도면 평면 + 미확정 3D · 검증 입체 0개" : "임시 치수 포함 · 도면 검토 필요"}
           </summary>
           <p>
-            슬래브·마감·참·문틀·창틀·샤프트는 검토 후보입니다. JSON/IFC에도
-            미확정 근거를 보존합니다. 선택 객체에서 치수와 근거를 확인하세요.
+            {model.provenance.coordination_draft ? "CAD 위치와 검토용 입체 조립체를 표시합니다. 높이·두께·재료 가정은 객체 속성에 기록됩니다. Draft IFC와 Verified IFC를 구분해 저장하세요." : model.provenance.precision_rebuild
+              ? "원본 평면 경계와 미확정 층간 외피를 표시합니다. 1 mm 벽면 표시는 실제 벽 두께가 아닙니다. 검증된 입체는 0개이며, 미확정 외피는 IFC에서 제외됩니다."
+              : "슬래브·마감·참·문틀·창틀·샤프트는 검토 후보입니다. JSON/IFC에도 미확정 근거를 보존합니다. 선택 객체에서 치수와 근거를 확인하세요."}
           </p>
         </details>
       )}
