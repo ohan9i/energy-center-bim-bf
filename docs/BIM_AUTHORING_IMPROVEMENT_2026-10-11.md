@@ -74,6 +74,12 @@
 
 최종 AW-5 화면은 `cad_output/precision-rebuild/coordination-v2/browser-current/after-authoring-inspector-f1.png`에 있다. 전체 Python 84개 검사는 마지막 유리 깊이 수정 전 실행했으며, 그 수정 뒤에는 관련 창호 검사·모델 전체 IFC 검사·웹 검사를 수행했다. 테스트 범위를 구분해 기록한다.
 
+### 공개 배포 확인 — 2026-10-12
+
+모델·뷰어 커밋 `5abef5b8026d4914056d8b69ef4caa308a37fb0d`를 push했고, [GitHub Pages 실행](https://github.com/ohan9i/energy-center-bim-bf/actions/runs/38150328025)이 테스트·빌드·배포까지 성공했다. [공개 사이트](https://ohan9i.github.io/energy-center-bim-bf/)에서 JSON과 IFC 2개를 다시 내려받아 커밋한 파일과 바이트 단위로 일치함을 확인했다. 로컬 IFC와의 차이는 Git의 CRLF/LF 줄바꿈 정규화뿐이며, 줄바꿈을 정규화한 내용은 동일하다.
+
+공개 모델은 revision 6, 구성요소 4,688개, 규격 적용 창 16개다. 공개 사이트 Chrome/WebGL 검사에서도 AW-5의 실제 형상과 폭·높이·창대·5+14+5mm 규격 패널을 확인했고, 실행 오류·HTTP 오류는 0건이다. 확인 수치와 공개 파일 SHA-256은 로컬 `authoring-deployment.json`에 보존했다.
+
 ## 남은 문제와 다음 우선순위
 
 창 272개 중 창호도 규격을 적용하지 못한 256개를 따로 기록했다. 249개는 유일한 평면 기호 연결을 확보하지 못했고, 5개는 원본 외곽이 불완전하거나 꺾인 창이며, 2개는 평면 외곽 폭과 창호도 폭이 일치하지 않는다. 기호 없음이 도면에 정보가 없다는 뜻은 아니며, 현재 자동 연결의 한계다.
