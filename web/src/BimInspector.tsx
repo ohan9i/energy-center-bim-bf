@@ -54,6 +54,8 @@ export default function BimInspector({
   const bb = item ? bounds([raw(item)]) : null;
   const junction = item?.source.connection_review as {kind:string;status:string;host_wall_ids?:string[];next_floor_id?:string|null;
     upper_landing_elevation_m?:number|null;level_difference_m?:number|null;plan_gap_to_upper_slab_m?:number|null}|undefined;
+  const windowReview = item?.source.plan_geometry_review as {native_segments:number;before_outside_footprint_m2:number;
+    after_outside_footprint_m2:number}|undefined;
   const survey = model.provenance.drawing_evidence as
     | {
         column_sections?: {
@@ -155,6 +157,12 @@ export default function BimInspector({
                 </dd>
                 <dt>모델 XY 좌표 범위</dt>
                 <dd>{bb&&`${bb.min.map(v=>v.toFixed(3)).join(', ')} → ${bb.max.map(v=>v.toFixed(3)).join(', ')} m`}<small>(측량 좌표와 별도)</small></dd>
+                {windowReview&&<>
+                  <dt>창호 평면 생성 대조</dt>
+                  <dd>윤곽 밖 형상 {windowReview.before_outside_footprint_m2.toFixed(6)} → {windowReview.after_outside_footprint_m2.toFixed(6)} m²
+                    {windowReview.native_segments>1&&` · CAD 면 쌍 ${windowReview.native_segments}구간`}
+                    <small>(생성 단계의 평면 검사 · 창호 높이·상세 미확정)</small></dd>
+                </>}
                 {item.source.measured_thickness_m !== undefined && (
                   <>
                     <dt>벽면 간격</dt>

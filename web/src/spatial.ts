@@ -30,7 +30,7 @@ export type Vertical=Spatial['vertical'][number];
 export type Blocker=Spatial['blockers'][number];
 
 export function modelFingerprint(m:Model):string {
- const parts:string[]=['bf-model-dependencies/2',m.id];
+ const parts:string[]=['bf-model-dependencies/3',m.id];
  const num=(v:number|null|undefined)=>v===null||v===undefined?'null':v.toFixed(7);
  const geometry=(e:Pick<Element,'polygon'|'holes'|'height'|'z_offset'> & {role?:string;mesh?:{vertices:number[][];triangles:number[][]}|null})=>{
   parts.push(e.role??'',num(e.height),num(e.z_offset));
@@ -82,7 +82,7 @@ export const approved=(r:Space|Portal|Vertical,token:string)=>r.status==='confir
 export function physicalBlockers(m:Model,s:Spatial):Blocker[] {
  const currentToken=modelFingerprint(m);
  const out:Blocker[]=s.blockers.filter(b=>!b.element_id||!m.elements.some(e=>e.id===b.element_id));
- for(const e of m.elements.filter(e=>!e.excluded&&['wall','column','obstacle','unclassified','stair','elevator'].includes(e.type))){
+ for(const e of m.elements.filter(e=>!e.excluded&&['wall','column','window','obstacle','unclassified','stair','elevator'].includes(e.type))){
   const edits=s.blockers.filter(b=>b.element_id===e.id);
   const corrections=edits.filter(b=>b.kind===e.type&&reviewed(b,currentToken));
   if(corrections.length)out.push(...corrections);

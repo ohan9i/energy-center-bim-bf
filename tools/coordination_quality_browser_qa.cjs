@@ -69,6 +69,18 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   await page.getByLabel('표시 층').selectOption('f1');await page.getByRole('button',{name:'실내 시점',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.viewer canvas')?.dataset.walking==='true');await screen('after-interior-f1');
   await page.getByRole('button',{name:'실내 시점 종료',exact:true}).click();
+  for(const [fid,id,label] of [
+   ['f1','coord-159000784c09bac2d6b9','after-constrained-window-f1'],
+   ['f3','coord-00088d6131cb5fe92e68','after-bent-window-f3'],
+   ['f4','coord-0aa6a2cc9653d0908c64','after-bent-window-f4'],
+  ]){
+   await page.getByLabel('표시 층').selectOption(fid);await page.getByLabel('객체 검색').fill(id);
+   await page.locator(`.object-row[title$="${id}"]`).click();
+   await page.getByRole('button',{name:'선택 확대',exact:true}).click();
+   await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();await screen(label);
+   await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();await page.getByLabel('객체 검색').fill('');
+  }
+  await page.getByLabel('표시 층').selectOption('all');
   await page.getByRole('button',{name:'BF 경로 탐색',exact:true}).click();await page.getByRole('button',{name:'경로 탐색',exact:true}).click();await page.getByText('경로 없음',{exact:true}).waitFor({timeout:30000});
   await page.getByLabel('JSON model import').setInputFiles(path.resolve('web/tests/fixtures/navigation-model.json'));
   await page.getByRole('button',{name:'경로 탐색',exact:true}).click();await page.getByText('조건 충족 경로',{exact:true}).waitFor({timeout:30000});

@@ -22,6 +22,17 @@ describe('space-scoped BF graph and navigation geometry',()=>{
   expect(check.clear([4,2],[7,2])).toBe(false);expect(check.clear([2,6],[2,9.5])).toBe(false);
   expect(check.clear([2,4.5],[4,4.5])).toBe(false);expect(check.clear([2,3.2],[4,3.2])).toBe(true);
  });
+ it('blocks glazing even when the ledger omits it, and never cuts it with a door approval',()=>{
+  for(const polygon of [rect(0,3,5,3.15),rect(4.9,3.7,5.4,5.3)]){
+   const m=spatialFixture(),s=ledger(m);
+   m.elements.push({...m.elements[1],id:'window-barrier',type:'window',polygon});
+   const token=modelFingerprint(m);s.model_fingerprint=token;
+   for(const r of [...s.spaces,...s.portals,...s.vertical])r.review!.model_fingerprint=token;
+   reapprove(m);
+   expect(findRoute(m,'entrance','lift1',p).status).toBe('no_path');
+   expect(buildSpatialNetwork(m,s,p).checks.get('f1')!.obstacles.some(o=>covers([o],polygon[0]))).toBe(true);
+  }
+ });
  it('cannot cross a space boundary without an explicit portal even if geometry touches',()=>{
   const m=spatialFixture(),s=ledger(m);s.portals[0].status='unresolved';expect(findRoute(m,'entrance','lift1',p).status).toBe('no_path');
   const n=spatialFixture();ledger(n).portals=[];expect(findRoute(n,'entrance','room2',p).status).toBe('no_path');
@@ -58,6 +69,11 @@ describe('space-scoped BF graph and navigation geometry',()=>{
   expect(s.spaces).toHaveLength(31);expect(s.portals).toHaveLength(98);expect(s.vertical).toHaveLength(10);
   const start=m.places.find(p=>p.floor_id==='f1')!,end=m.places.find(p=>p.floor_id==='f2')!;
   const lift=m.places.find(p=>p.floor_id==='f1'&&p.name.includes('E.V'))!;
+  const hall=m.places.find(p=>p.floor_id==='f1'&&p.name.includes('홀'))!;
+  const meeting=m.places.find(p=>p.floor_id==='f1'&&p.name.includes('회의'))!;
+  expect(s.spaces.some(x=>x.floor_id==='f1'&&covers(x.region,hall.point))).toBe(true);
+  expect(s.spaces.some(x=>x.floor_id==='f1'&&covers(x.region,meeting.point))).toBe(true);
+  expect(findRoute(m,hall.id,meeting.id,p).status).toBe('no_path');
   expect(findRoute(m,start.id,lift.id,p).status).toBe('no_path');
   expect(findRoute(m,start.id,end.id,p).status).toBe('no_path');delete m.provenance.bf_spatial;expect(findRoute(m,start.id,end.id,p).status).toBe('no_path');
  });

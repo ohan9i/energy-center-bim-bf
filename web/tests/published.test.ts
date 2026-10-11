@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {readFileSync,readdirSync} from 'node:fs';
 import {parseModel,type XY} from '../src/model';
-import {validateGeometry,raw} from '../src/geometry';
+import {validateGeometry,raw,inside,edges,pointSegment,dist} from '../src/geometry';
 import {area,difference} from '../src/spatial';
 import {findRoute} from '../src/navigation';
 
@@ -35,6 +35,28 @@ describe('published coordination model',()=>{
     const host=elements.get(c.host_wall_id)!;expect(host.type).toBe('wall');expect(host.floor_id).toBe(e.floor_id);
     expect(area(difference([[c.polygon,...c.holes]],[raw(host)]))).toBeLessThan(1e-7);
    }
+  }
+ });
+ it('keeps rendered window solids inside their CAD footprints and preserves both bent runs',()=>{
+  const m=parseModel(JSON.parse(input));
+  for(const e of m.elements.filter(e=>e.type==='window'&&e.components.length)){
+   // Exact outside-area validation runs in the Python/GEOS generator. Here
+   // independently check the actual render edges without polygon-clipping's
+   // unstable difference of numerically coincident diagonal output rings.
+   const boundary=raw(e).flatMap(edges);
+   for(const c of e.components)for(const [a,b] of [c.polygon,...c.holes].flatMap(edges)){
+    const n=Math.max(1,Math.ceil(dist(a,b)/.05));
+    for(let i=0;i<=n;i++){
+     const pt:XY=[a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n];
+     expect(inside(pt,raw(e))||boundary.some(([x,y])=>pointSegment(pt,x,y)<=.000002),e.id).toBe(true);
+    }
+   }
+  }
+  for(const id of ['coord-00088d6131cb5fe92e68','coord-0aa6a2cc9653d0908c64']){
+   const e=m.elements.find(e=>e.id===id)!;
+   const runs=e.source.window_plan_segments as {cad_ids:string[]}[];
+   expect(runs).toHaveLength(2);expect(runs.every(r=>r.cad_ids.length>=2)).toBe(true);
+   expect(e.source.window_plan_axis).toBeUndefined();expect(e.verified).toBe(false);
   }
  });
 });
