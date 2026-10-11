@@ -64,6 +64,7 @@ const base='/energy-center-bim-bf/',dist=path.resolve('web/dist');
   await page.getByLabel('객체 검색').fill(door.id);
   await page.locator(`.object-row[title$="${door.id}"]`).click();
   assert((await page.locator('.architectural-properties').innerText()).includes('개구부 · 계단참 연결 검사'));
+  await page.locator('.architectural-properties').getByText('형상 정보 · 구성 요소',{exact:true}).click();
   assert((await page.locator('.architectural-properties').innerText()).includes('모델 XY 좌표 범위'));
   await page.getByLabel('객체 검색').fill('');
   // Seed retired records in this isolated test context and verify the migration.

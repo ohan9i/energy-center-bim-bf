@@ -44,7 +44,7 @@
 | 검사 | 결과 |
 |---|---|
 | 프로젝트 Python `-m pytest tests -q` | 73개 통과. 기존 Starlette/httpx 경고 1건 |
-| `npm.cmd --prefix web test` | 61개 통과 |
+| `npm.cmd --prefix web test` | 62개 통과. 공개 모델의 호스트 ID·개구부 조각 대응도 CI에서 검사 |
 | `VITE_VIEWER_ONLY=true`, `VITE_BASE_PATH=/energy-center-bim-bf/`, 웹 빌드 | TypeScript·Vite 통과. 기존 Zod 주석 및 Three.js 번들 크기 경고 |
 | `python -m bf_bim.precise.rebuild --coordination --sync-web` | 현재 JSON·Draft/Verified IFC 재생성 및 전체 입체 검사 통과 |
 | `python -m bf_bim.spatial_navigation --sync-web` | 원본 도면 해시·보존 검사, 최신 의존성 토큰 적용 |
