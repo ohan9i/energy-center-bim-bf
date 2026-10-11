@@ -15,8 +15,8 @@ interface Props {
 }
 const format = (v: unknown) =>
   typeof v === "number" ? v.toFixed(3) + " m" : "미확인";
-const evidenceLabels: Record<string,string> = {identity:"부재 부호",position:"평면 위치",profile:"평면 윤곽",base:"하단 레벨",top:"상단 높이",material:"재료",scope:"적용 층",revision:"도면 개정",member_mark:"창호 부호"};
-const evidenceStates: Record<string,string> = {verified:"검증 완료",drawing_based:"도면에서 측정",candidate:"연결 후보 · 확인 필요",provisional:"시각화 가정",unresolved:"미확정"};
+const evidenceLabels: Record<string,string> = {identity:"부재 부호",position:"평면 위치",profile:"평면 윤곽",base:"하단 레벨",top:"상단 높이",material:"재료",scope:"적용 층",revision:"도면 개정",member_mark:"창호 부호",sill:"창대 기준",head:"개구부 상단",opening_height:"개구부 높이",glass_specification:"유리 구성 두께"};
+const evidenceStates: Record<string,string> = {verified:"검증 완료",drawing_based:"도면에서 측정",drawing_correlated:"도면 간 대조 · 최종 검토 필요",candidate:"연결 후보 · 확인 필요",provisional:"시각화 가정",unresolved:"미확정"};
 export default function BimInspector({
   model,
   library,
@@ -56,6 +56,8 @@ export default function BimInspector({
     upper_landing_elevation_m?:number|null;level_difference_m?:number|null;plan_gap_to_upper_slab_m?:number|null}|undefined;
   const windowReview = item?.source.plan_geometry_review as {native_segments:number;before_outside_footprint_m2:number;
     after_outside_footprint_m2:number}|undefined;
+  const windowSchedule = item?.source.schedule_assignment as {mark:string;width_m:number;height_m:number;sill_m:number;
+    glass_thickness_m:number;glazing_build_up_m:number[]|null;scope_text:string;description:string[]}|undefined;
   const survey = model.provenance.drawing_evidence as
     | {
         column_sections?: {
@@ -127,8 +129,8 @@ export default function BimInspector({
                 ).toFixed(3)}{" "}
                 m
               </dd>
-              <dt>높이 / 두께</dt>
-              <dd>{format(item.height)}</dd>
+              <dt>{windowSchedule ? "창호 폭 · 높이" : "높이 / 두께"}</dt>
+              <dd>{windowSchedule ? `${windowSchedule.mark} · ${format(windowSchedule.width_m)} × ${format(windowSchedule.height_m)} (도면 대조)` : format(item.height)}</dd>
               <dt>모델 평면 면적</dt>
               <dd>
                 {planArea(item).toFixed(2)} m²{" "}
@@ -222,7 +224,9 @@ export default function BimInspector({
                 <dd>{String(item.source.file ?? "출처 없음")}</dd>
                 <dt>높이 근거</dt>
                 <dd>
-                  {item.height === null
+                  {windowSchedule
+                    ? `창호도 대조 · ${format(windowSchedule.height_m)} / 층 기준면 검토 필요`
+                    : item.height === null
                     ? "미확인 · 가정 표시와 별도로 저장"
                     : String(
                         item.source.height_source ?? "구성요소별 근거 확인",
@@ -259,6 +263,16 @@ export default function BimInspector({
               {item.source.plan_schedule_links !== undefined && <details open>
                 <summary>창호도 부호 연결 후보</summary>
                 <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.plan_schedule_links,null,2)}</pre>
+              </details>}
+              {windowSchedule && <details className="fact-section" open>
+                <summary>적용 창호 규격 · {windowSchedule.mark}</summary>
+                <dl className="bim-facts">
+                  <dt>전체 폭 · 높이</dt><dd>{format(windowSchedule.width_m)} · {format(windowSchedule.height_m)}</dd>
+                  <dt>창대 · 유리 구성 두께</dt><dd>{format(windowSchedule.sill_m)} · {format(windowSchedule.glass_thickness_m)}</dd>
+                  {windowSchedule.glazing_build_up_m && <><dt>복층유리 구성</dt><dd>{windowSchedule.glazing_build_up_m.map(v=>(v*1000).toFixed(0)).join(" + ")} mm · 유리 / 중공층 / 유리</dd></>}
+                  <dt>도면 적용 위치</dt><dd>{windowSchedule.scope_text}</dd>
+                </dl>
+                <p>평면 부호·층·프레임 폭을 창호도와 대조했습니다. 설계 승인과 BF 통행 확인은 별도입니다.</p>
               </details>}
               {item.source.section_dimension_link !== undefined && <details open>
                 <summary>계단 단면 치수 대조</summary>

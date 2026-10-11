@@ -7,9 +7,12 @@ export function createRenderContext(m:Model){const openings=new Map<string,Eleme
 export function renderPieces(e:Element,m:Model,assumptions=false,openingFraction=0,context?:Map<string,Element[]>):Piece[]{
  if(assumptions&&['floor','roof'].includes(e.type)&&Array.isArray(e.source.architectural_slab_profiles)&&!e.source.architectural_slab_profiles.length)return [];
  if(assumptions&&['space','corridor'].includes(e.type)&&Array.isArray(e.source.architectural_space_profiles))return (e.source.architectural_space_profiles as Poly[]).map(poly=>({poly,z:e.z_offset,height:null,assumed:true}));
- if(e.components.length)return e.components.map(c=>({poly:c.role==='door_leaf'&&openingFraction?rotateDoor([c.polygon,...c.holes],e,openingFraction):[c.polygon,...c.holes],z:e.z_offset+c.z_offset,
-  height:!assumptions&&c.source.geometry_status==='provisional'?null:c.height,role:c.role,
-  assumed:c.source.geometry_status==='provisional',material:String(c.source.material??e.source.material??'unknown'),mesh:!assumptions&&c.source.geometry_status==='provisional'?null:c.mesh,componentId:c.id}));
+ if(e.components.length)return e.components.map(c=>{
+  const assumed=c.source.geometry_status==='provisional'||c.source.geometry_status==='drawing_correlated'&&c.source.dimension_verified!==true;
+  return {poly:c.role==='door_leaf'&&openingFraction?rotateDoor([c.polygon,...c.holes],e,openingFraction):[c.polygon,...c.holes],z:e.z_offset+c.z_offset,
+   height:!assumptions&&assumed?null:c.height,role:c.role,assumed,
+   material:String(c.source.material??e.source.material??'unknown'),mesh:!assumptions&&assumed?null:c.mesh,componentId:c.id};
+ });
  const vertical=assumptions?e.source.architectural_vertical_profiles as {polygon:XY[];holes:XY[][];z_offset:number;height:number;geometry_status:string}[]|undefined:undefined;
  if(e.type!=='wall'){
   if(vertical)return vertical.map(v=>({poly:[v.polygon,...v.holes],z:v.z_offset,height:v.height,assumed:v.geometry_status==='provisional'}));

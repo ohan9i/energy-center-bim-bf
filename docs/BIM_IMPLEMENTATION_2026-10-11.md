@@ -1,6 +1,6 @@
 # BIM 정확도 개선 구현 결과
 
-최신 revision 5의 실제 창호 형상 수정과 BF 장애물 반영, 전후 측정은 [집중 개선 결과](BIM_FOCUSED_IMPROVEMENT_2026-10-11.md)를 참고한다. 아래 revision 3·4의 기록과 구분한다.
+최신 revision 6의 원본 프레임·창호 입면 규격·복층유리·IFC 관계 수정은 [작성 품질 개선 결과](BIM_AUTHORING_IMPROVEMENT_2026-10-11.md)를 참고한다. 앞선 revision 5는 [집중 개선 결과](BIM_FOCUSED_IMPROVEMENT_2026-10-11.md)에 있다. 아래 revision 3·4의 기록과 구분한다.
 
 후속 종합 개선(revision 4)의 호스트 참조 수정·경로 차단·접합 검사와 최신 검증 결과는 [BIM·BF 연결 신뢰성 개선](BIM_BF_RELIABILITY_2026-10-11.md)을 참고한다. 아래 revision 3의 기록과 구분한다.
 

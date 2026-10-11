@@ -7,7 +7,7 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
  fs.mkdirSync(out,{recursive:true});
  try{
   const model=JSON.parse(fs.readFileSync('web/public/models/precision-rebuild.json','utf8'));
-  assert.equal(model.provenance.modelling_version,8);
+  assert.equal(model.provenance.modelling_version,9);
   const base='/energy-center-bim-bf/';
   let origin=process.env.BIM_QA_URL;
   if(!origin){server=http.createServer((req,res)=>{
@@ -37,6 +37,22 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   assert.equal(await page.getByLabel('BIM 건축물').inputValue(),model.id);
   assert.equal(await canvas.getAttribute('data-model-components'),String(model.elements.reduce((n,e)=>n+e.components.length,0)));
   assert.equal(await page.locator('.fallback').count(),0);
+  if(process.argv.includes('--authoring-only')){
+   const id='coord-7856c0b97b13a29f12cb';
+   await page.getByLabel('표시 층').selectOption('f1');await page.getByLabel('객체 검색').fill(id);
+   await page.locator(`.object-row[title$="${id}"]`).click();
+   const text=await page.locator('.architectural-properties').innerText();
+   assert(text.includes('AW-5 · 1.800 m × 1.600 m (도면 대조)'));
+   assert(text.includes('5 + 14 + 5 mm'));
+   assert(text.includes('설계 승인과 BF 통행 확인은 별도'));
+   await page.getByRole('button',{name:'선택 확대',exact:true}).click();
+   await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();
+   await page.getByText('적용 창호 규격 · AW-5',{exact:true}).scrollIntoViewIfNeeded();
+   await screen('after-authoring-inspector-f1');
+   assert.equal(errors.length,0);assert.equal(badRequests.length,0);
+   fs.writeFileSync(path.join(out,'authoring-inspector-results.json'),JSON.stringify({status:'passed',screens,errors,badRequests},null,2));
+   console.log(JSON.stringify({status:'passed',screens:screens.length,errors,badRequests}));return;
+  }
   await screen('after-whole');
   await tools('표시 설정');await page.getByLabel('뷰 방향',{exact:true}).selectOption('front');await screen('after-front');
   assert.equal(await page.getByRole('button',{name:'개선 전 모델 비교',exact:true}).count(),0);
@@ -70,6 +86,8 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   await page.waitForFunction(()=>document.querySelector('.viewer canvas')?.dataset.walking==='true');await screen('after-interior-f1');
   await page.getByRole('button',{name:'실내 시점 종료',exact:true}).click();
   for(const [fid,id,label] of [
+   ['f1','coord-e09c1449d93909693e2f','after-schedule-aw1-f1'],
+   ['f1','coord-7856c0b97b13a29f12cb','after-schedule-aw5-f1'],
    ['f1','coord-159000784c09bac2d6b9','after-constrained-window-f1'],
    ['f3','coord-00088d6131cb5fe92e68','after-bent-window-f3'],
    ['f4','coord-0aa6a2cc9653d0908c64','after-bent-window-f4'],
