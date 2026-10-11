@@ -4,12 +4,13 @@ import {bounds} from './geometry';
 import {approved,reviewed,spatialData,spatialSchema,validateSpatial,storeSpatial,modelFingerprint,recordFingerprint,physicalBlockers,difference,overlap,type Spatial} from './spatial';
 import {buildSpatialNetwork} from './spatialRoute';
 
-interface Props {model:Model;profile:Profile;floor:string;editing:boolean;onApply:(m:Model)=>void;onClose:()=>void}
+interface Props {model:Model;profile:Profile;floor:string;editing:boolean;initialSelection?:string;onApply:(m:Model)=>void;onClose:()=>void}
 const fileDownload=(data:unknown,name:string)=>{const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-export default function SpatialReview({model,profile,floor,editing,onApply,onClose}:Props){
+export default function SpatialReview({model,profile,floor,editing,initialSelection='',onApply,onClose}:Props){
  const [data,setData]=useState<Spatial|null>(()=>{try{return spatialData(model);}catch{return null;}});
- const [fid,setFid]=useState(floor==='all'?'f1':floor),[category,setCategory]=useState<'spaces'|'portals'|'blockers'|'vertical'>('spaces');
- const [selected,setSelected]=useState(''),[text,setText]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState('');
+ const [fid,setFid]=useState(floor==='all'?'f1':floor),[category,setCategory]=useState<'spaces'|'portals'|'blockers'|'vertical'>(()=>
+  (['spaces','portals','blockers','vertical'] as const).find(key=>data?.[key].some(r=>r.id===initialSelection))??'spaces');
+ const [selected,setSelected]=useState(initialSelection),[text,setText]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState('');
  const [cad,setCad]=useState(true),[showGrid,setShowGrid]=useState(false),[zoom,setZoom]=useState(1),[reviewer,setReviewer]=useState(''),[references,setReferences]=useState('');
  const svg=useRef<SVGSVGElement>(null),group=useRef<SVGGElement>(null),drag=useRef<{poly:number;ring:number;point:number}|null>(null);
  const records=data?data[category].filter(r=>'floor_id' in r?r.floor_id===fid:r.element_ids.some(id=>model.elements.find(e=>e.id===id)?.floor_id===fid)):[];
@@ -26,7 +27,7 @@ export default function SpatialReview({model,profile,floor,editing,onApply,onClo
  const path=(region:XY[][][])=>region.map(poly=>poly.map(r=>'M'+r.map(p=>p.join(',')).join('L')+'Z').join(' ')).join(' ');
  const effective=data?physicalBlockers(model,data).filter(b=>b.floor_id===fid):[];
  const green=(region:XY[][][])=>difference(region,network?.checks.get(fid)?.obstacles??effective.flatMap(b=>b.region));
- const pass=(s:Spatial['spaces'][number])=>approved(s,currentToken)&&s.step!==null&&s.step<=profile.max_step&&s.slope!==null&&s.slope<=profile.max_slope;
+ const pass=(s:Spatial['spaces'][number])=>Boolean(network)&&approved(s,currentToken)&&s.step!==null&&s.step<=profile.max_step&&s.slope!==null&&s.slope<=profile.max_slope;
  function replace(value:unknown){
   if(!data||!item)return;
   try{const copy=structuredClone(data),next=structuredClone(value) as typeof item;
@@ -59,7 +60,8 @@ export default function SpatialReview({model,profile,floor,editing,onApply,onClo
   replace({...item,...('status' in item?{status:'confirmed',reasons:[]}:{}),evidence,
    review:{reviewer:reviewer.trim(),reviewed_at:new Date().toISOString(),model_fingerprint:modelFingerprint(model),content_fingerprint:recordFingerprint(item),evidence}});
  }
- const network=useMemo(()=>{if(!data)return null;try{return buildSpatialNetwork(model,data,profile);}catch{return null;}},[model,data,profile]);
+ const networkResult=useMemo(()=>{if(!data)return {network:null,error:''};try{return {network:buildSpatialNetwork(model,data,profile),error:''};}catch(e){return {network:null,error:e instanceof Error?e.message:String(e)};}},[model,data,profile]);
+ const network=networkResult.network;
  return <div className="spatial-dialog" role="dialog" aria-modal="true" aria-label="BF 공간 경계 검증">
   <header><div><h2>BF 공간 경계 검증</h2><p>초록: 확인된 이동 영역 · 빨강: 장애물/빈 공간 · 파랑: 확인된 연결 · 주황: 미확정</p></div><button onClick={onClose}>닫기</button></header>
   {!data?<p>이 모델에는 별도 BF 공간 데이터가 없습니다. 현재 도면 모델을 재생성하세요.</p>:<>
@@ -75,6 +77,7 @@ export default function SpatialReview({model,profile,floor,editing,onApply,onClo
   {data.model_fingerprint!==currentToken&&<p role="alert">BIM 또는 CAD가 변경되어 기존 경계 검토를 사용할 수 없습니다. 변경 구간의 경계와 연결 조건을 다시 검토하세요.</p>}
   {model.provenance.bf_spatial_override_state&&<p role="alert">이전 공간 수정본은 BIM 변경으로 재검토가 필요합니다. 브라우저 저장소에는 보존되어 있습니다.</p>}
   {error&&<p role="alert" className="spatial-error">{error}</p>}{message&&<p role="status">{message}</p>}
+  {networkResult.error&&<p role="alert" className="spatial-error">공간 연결 검사: {networkResult.error}</p>}
   <div className="spatial-body"><aside><label>검토 대상 <select aria-label="공간 검토 대상" value={category} onChange={e=>{setCategory(e.target.value as typeof category);setSelected('');}}>
    <option value="spaces">실·복도·홀 경계</option><option value="portals">출입문·개방 통로</option><option value="blockers">벽·기둥·중정·샤프트</option><option value="vertical">층간 연결</option></select></label>
    {editing&&category!=='vertical'&&<button onClick={addRecord}>미확정 항목 추가</button>}
@@ -89,13 +92,15 @@ export default function SpatialReview({model,profile,floor,editing,onApply,onClo
     {data.spaces.filter(s=>s.floor_id===fid).map(s=><path key={s.id} data-space-id={s.id} d={path(pass(s)?green(s.region):s.region)} fill={pass(s)?'#10b98166':'#f59e0b35'} fillRule="evenodd" stroke={selected===s.id?'#0f172a':'#d97706'} strokeWidth={selected===s.id?2.5:1} vectorEffect="non-scaling-stroke" onClick={()=>{setCategory('spaces');setSelected(s.id);}}/>)}
     {(network?.checks.get(fid)?.obstacles??effective.flatMap(b=>b.region)).map((region,i)=><path key={'physical-'+i} d={path([region])} fill="#ef444455" fillRule="evenodd" stroke="#b91c1c" strokeWidth=".7" vectorEffect="non-scaling-stroke" onClick={()=>{const b=effective.find(b=>overlap(b.region,[region])>1e-8);if(b){setCategory('blockers');setSelected(b.id.replace(/^pending-/,''));}}}/>)}
     {cad&&traces.filter(t=>t.floor_id===fid).map(t=><polyline key={t.id} points={t.points.map(p=>p.join(',')).join(' ')} fill="none" stroke="#475569" strokeWidth=".7" vectorEffect="non-scaling-stroke" pointerEvents="none"/>)}
-    {data.portals.filter(g=>g.floor_id===fid).map(g=><g key={g.id} onClick={()=>{setCategory('portals');setSelected(g.id);}}><path d={path(g.region)} fill={approved(g,currentToken)?'#0284c788':'#f59e0b66'} stroke="#0284c7" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>
-      <polyline points={g.points.map(p=>p.join(',')).join(' ')} fill="none" stroke={approved(g,currentToken)?'#0284c7':'#d97706'} strokeDasharray={approved(g,currentToken)?undefined:'3 3'} strokeWidth="2" vectorEffect="non-scaling-stroke"/></g>)}
+    {data.portals.filter(g=>g.floor_id===fid).map(g=>{const usable=network?.space_edges.some(e=>e.via===g.id)??false;
+     return <g key={g.id} data-portal-id={g.id} onClick={()=>{setCategory('portals');setSelected(g.id);}}><path d={path(g.region)} fill={usable?'#0284c788':approved(g,currentToken)?'#ef444466':'#f59e0b66'} stroke={selected===g.id?'#0f172a':usable?'#0284c7':'#d97706'} strokeWidth={selected===g.id?'3':'1.5'} vectorEffect="non-scaling-stroke"/>
+      <polyline points={g.points.map(p=>p.join(',')).join(' ')} fill="none" stroke={usable?'#0284c7':approved(g,currentToken)?'#b91c1c':'#d97706'} strokeDasharray={usable?undefined:'3 3'} strokeWidth="2" vectorEffect="non-scaling-stroke"/></g>;})}
     {showGrid&&network?.nodes.filter(n=>n.floor===fid).slice(0,10000).map((n,i)=><circle data-grid-node key={'node-'+i} cx={n.point[0]} cy={n.point[1]} r={.035/zoom} fill="#0369a1" pointerEvents="none"/>)}
     {editing&&item&&'region' in item&&item.region.map((poly,pi)=>poly.map((ring,ri)=>ring.map((p,i)=><circle key={`${pi}-${ri}-${i}`} cx={p[0]} cy={p[1]} r={width/zoom/(svg.current?.clientWidth||800)*5} fill="#0f172a" onPointerDown={e=>{e.preventDefault();e.stopPropagation();drag.current={poly:pi,ring:ri,point:i};svg.current?.setPointerCapture(e.pointerId);}}/>)))}
    </g>
-  </svg><p>도면의 같은 좌표계(m)를 사용합니다. CAD 추출선 중첩은 원본 DWG의 독립 설계 검증과 구분됩니다. 꼭짓점을 드래그하면 경계를 수정할 수 있습니다.</p></main>
+  </svg><p>도면의 같은 좌표계(m)를 사용합니다. CAD 추출선 중첩은 원본 DWG의 독립 설계 검증과 구분됩니다. {editing?'꼭짓점을 드래그하면 경계를 수정할 수 있습니다.':'검토 대상 선택으로 경계와 연결 근거를 확인하세요.'}</p></main>
   <aside className="spatial-editor">{item?<><h3>{'name' in item?item.name:item.id}</h3><p>{'reasons' in item?item.reasons.join(' · '):'벽체 수정은 별도 검토 근거가 필요합니다.'}</p>
+   {network?.excluded.filter(r=>r.id===item.id).map(r=><p key={r.id} role="status">현재 경로 조건: {r.reasons.join(' · ')}</p>)}
    <label>경계·연결·통행 조건 JSON<textarea aria-label="BF 공간 편집 JSON" disabled={!editing} value={text} onChange={e=>setText(e.target.value)}/></label>
    {editing&&<><button onClick={()=>{try{replace(JSON.parse(text));}catch(e){setError(String(e));}}}>JSON 편집 적용</button>
     <p>region은 [외곽, 내부 구멍] 다각형 목록입니다. 문은 양쪽 space_ids, 접근 points, 실제 호스트 벽 ID가 필요합니다. 단차·경사·유효폭·개폐 조건의 null은 미확정입니다.</p>

@@ -52,6 +52,8 @@ export default function BimInspector({
       ]
     : [];
   const bb = item ? bounds([raw(item)]) : null;
+  const junction = item?.source.connection_review as {kind:string;status:string;host_wall_ids?:string[];next_floor_id?:string|null;
+    upper_landing_elevation_m?:number|null;level_difference_m?:number|null;plan_gap_to_upper_slab_m?:number|null}|undefined;
   const survey = model.provenance.drawing_evidence as
     | {
         column_sections?: {
@@ -125,10 +127,10 @@ export default function BimInspector({
               </dd>
               <dt>높이 / 두께</dt>
               <dd>{format(item.height)}</dd>
-              <dt>원본 XY 면적</dt>
+              <dt>모델 평면 면적</dt>
               <dd>
                 {planArea(item).toFixed(2)} m²{" "}
-                <small>(BF 기준 평면 · 수량 미검증)</small>
+                <small>(경계 후보 · 수량 미검증)</small>
               </dd>
               {item.source.architectural_slab_profiles !== undefined && (
                 <>
@@ -151,6 +153,8 @@ export default function BimInspector({
                   {bb &&
                     `${(bb.max[0] - bb.min[0]).toFixed(3)} / ${(bb.max[1] - bb.min[1]).toFixed(3)} m`}
                 </dd>
+                <dt>모델 XY 좌표 범위</dt>
+                <dd>{bb&&`${bb.min.map(v=>v.toFixed(3)).join(', ')} → ${bb.max.map(v=>v.toFixed(3)).join(', ')} m`}<small>(측량 좌표와 별도)</small></dd>
                 {item.source.measured_thickness_m !== undefined && (
                   <>
                     <dt>벽면 간격</dt>
@@ -187,6 +191,20 @@ export default function BimInspector({
                 )}
               </dl>
             </details>
+            {junction&&<details className="fact-section" open>
+              <summary>개구부 · 계단참 연결 검사</summary>
+              <dl className="bim-facts">
+                <dt>기하 관측</dt><dd>{{observed_host_cut:'호스트 벽 절단 후보 연결',unresolved_no_wall_host:'벽 호스트 미대응 · 개구부/출입구 위치 검토 필요',observed_near_contact:'상층 바닥과 근접한 계단참 후보',unresolved_connection:'계단참과 상층 바닥 연결 미확정'}[junction.status]??junction.status}</dd>
+                {junction.host_wall_ids&&<><dt>대응 벽체</dt><dd>{junction.host_wall_ids.length}개 · 아래 관련 객체에서 선택</dd></>}
+                {junction.kind==='stair'&&<>
+                  <dt>상층</dt><dd>{model.floors.find(f=>f.id===junction.next_floor_id)?.name??'미확정'}</dd>
+                  <dt>상부 참 레벨</dt><dd>{format(junction.upper_landing_elevation_m)}</dd>
+                  <dt>층 기준 높이 차</dt><dd>{format(junction.level_difference_m)}</dd>
+                  <dt>상층 바닥 평면 간격</dt><dd>{format(junction.plan_gap_to_upper_slab_m)}</dd>
+                </>}
+              </dl>
+              <p className="muted">미확정 형상 간 기하 비교입니다. 실제 접합·문 유효폭·계단 진행 방향·BF 통행 승인은 별도 검토가 필요합니다.</p>
+            </details>}
             <details className="fact-section" open>
               <summary>CAD 근거 · 높이 출처</summary>
               <dl className="bim-facts">

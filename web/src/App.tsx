@@ -85,6 +85,7 @@ function checkedModel(data: unknown) {
 }
 export default function App() {
   const [spatialOpen, setSpatialOpen] = useState(false);
+  const [spatialSelection, setSpatialSelection] = useState('');
   const [initializing, setInitializing] = useState(true);
   const [model, setModel] = useState<Model | null>(null),
     [library, setLibrary] = useState<Model[]>([]),
@@ -588,7 +589,7 @@ export default function App() {
           </span>
         </div>
         <div className="header-actions">
-          {spatialOpen && <SpatialReview model={model} profile={profile} floor={floor} editing={editing} onApply={update} onClose={() => setSpatialOpen(false)} />}
+          {spatialOpen && <SpatialReview model={model} profile={profile} floor={floor} editing={editing} initialSelection={spatialSelection} onApply={update} onClose={() => {setSpatialOpen(false);setSpatialSelection('');}} />}
           <span className="model-state">
             <i />
             {model.is_example ? "예제 모델" : "도면 기반 모델"}
@@ -1472,6 +1473,13 @@ export default function App() {
                               <button
                                 className="text-button"
                                 onClick={() => {
+                                  if(r.spatial_kind){
+                                    setSpatialSelection(r.id);
+                                    setSelected(r.element_ids?.[0]??'');
+                                    if(r.floor_ids?.[0])setFloor(r.floor_ids[0]);
+                                    setSpatialOpen(true);
+                                    return;
+                                  }
                                   setSelected(r.id);
                                   setTab("review");
                                   setLeftOpen(true);
@@ -1480,10 +1488,10 @@ export default function App() {
                                 }}
                               >
                                 {
-                                  model.elements.find((e) => e.id === r.id)
-                                    ?.name
+                                  r.name??model.elements.find((e) => e.id === r.id)?.name??r.id
                                 }
                               </button>
+                              {r.floor_ids?.length ? ` (${r.floor_ids.map(id=>model.floors.find(f=>f.id===id)?.name??id).join(' → ')})` : ''}
                               : {statusLabel[r.status]} — {r.reasons.join(", ")}
                             </p>
                           ))}

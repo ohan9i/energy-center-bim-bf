@@ -30,7 +30,7 @@ export type Vertical=Spatial['vertical'][number];
 export type Blocker=Spatial['blockers'][number];
 
 export function modelFingerprint(m:Model):string {
- const parts:string[]=[m.id];
+ const parts:string[]=['bf-model-dependencies/2',m.id];
  const num=(v:number|null|undefined)=>v===null||v===undefined?'null':v.toFixed(7);
  const geometry=(e:Pick<Element,'polygon'|'holes'|'height'|'z_offset'> & {role?:string;mesh?:{vertices:number[][];triangles:number[][]}|null})=>{
   parts.push(e.role??'',num(e.height),num(e.z_offset));
@@ -43,6 +43,12 @@ export function modelFingerprint(m:Model):string {
   parts.push(num(e.properties.clear_width),num(e.properties.step),num(e.properties.slope),e.properties.operational===null?'null':String(e.properties.operational),String(e.verified));
   geometry(e);
   for(const c of e.components)geometry(c);
+  // Host cut profiles are used by the route builder independently of the
+  // rendered solids. Editing only this metadata must invalidate old reviews.
+  for(const id of [...(e.source.host_wall_ids??[]) as string[]].sort())parts.push('host',id);
+  for(const cut of (e.source.host_openings??[]) as {host_wall_id:string;polygon:XY[];holes?:XY[][]}[]){
+   parts.push('opening-host',cut.host_wall_id);geometry({...cut,holes:cut.holes??[],height:null,z_offset:0});
+  }
  }
  for(const t of (m.provenance.cad_traces??[]) as {id:string;floor_id:string;kind:string;points:XY[]}[]){
   parts.push(t.id,t.floor_id,t.kind);for(const p of t.points)for(const v of p)parts.push(num(v));
@@ -116,9 +122,11 @@ export function validateSpatial(m:Model,input:unknown):Spatial {
  for(const r of [...s.spaces,...s.portals,...s.vertical])if(r.status==='confirmed'&&!approved(r,s.model_fingerprint))
   throw Error(r.id+': 검토자·시점·현재 BIM 해시·도면 근거와 미확정 사유 해소 기록이 필요합니다.');
  const spaces=new Map(s.spaces.map(x=>[x.id,x]));
+ for(const v of s.vertical)if(v.element_ids.some(id=>!elements.has(id)))throw Error(v.id+': 층간 시설 부재 참조 오류');
  const confirmed=s.spaces.filter(x=>approved(x,s.model_fingerprint));
  for(const a of confirmed){
   if(!a.region.length||a.step===null||a.slope===null)throw Error(a.id+': 이동 바닥 경계/단차/경사 미확정');
+  if(a.element_id&&elements.get(a.element_id)!.excluded)throw Error(a.id+': 제외된 BIM 공간/시설은 통행에 사용할 수 없습니다.');
   if(a.kind==='elevator_car'&&(!a.element_id||elements.get(a.element_id)?.type!=='elevator'))throw Error(a.id+': 승강기 카 부재 연결 필요');
   const support=union(m.elements.filter(e=>e.floor_id===a.floor_id&&e.type==='floor'&&!e.excluded).map(raw));
   if(a.kind!=='elevator_car'&&area(difference(a.region,support))>1e-7)throw Error(a.id+': 구조 바닥 지지 영역 밖입니다.');

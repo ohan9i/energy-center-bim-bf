@@ -48,7 +48,24 @@ const base='/energy-center-bim-bf/',dist=path.resolve('web/dist');
   await page.getByRole('button',{name:'경로 탐색',exact:true}).click();
   await page.getByText('경로 없음',{exact:true}).waitFor({timeout:30000});
   const bf='no_path';
+  const exclusions=page.locator('details').filter({has:page.locator('summary').filter({hasText:'모델에서 제외 또는 확인이 필요한 요소'})});
+  await exclusions.locator('summary').click();
+  const target=exclusions.locator('button.text-button').first();assert((await target.innerText()).trim().length>0);
+  await target.click();
+  await page.getByRole('dialog',{name:'BF 공간 경계 검증'}).waitFor();
+  const selectedRecord=JSON.parse(await page.getByLabel('BF 공간 편집 JSON').inputValue());
+  assert.equal(selectedRecord.id,current.provenance.bf_spatial.spaces[0].id);
+  assert.equal(await page.getByLabel('공간 검토 층').inputValue(),selectedRecord.floor_id);
+  assert.equal(await page.getByLabel('공간 검토 대상').inputValue(),'spaces');
+  await page.getByRole('button',{name:'닫기',exact:true}).click();
   await page.getByRole('button',{name:'BIM 모델',exact:true}).click();
+  const door=current.elements.find(e=>e.type==='door'&&e.source.connection_review?.host_wall_ids.length);
+  await page.getByLabel('표시 층').selectOption(door.floor_id);
+  await page.getByLabel('객체 검색').fill(door.id);
+  await page.locator(`.object-row[title$="${door.id}"]`).click();
+  assert((await page.locator('.architectural-properties').innerText()).includes('개구부 · 계단참 연결 검사'));
+  assert((await page.locator('.architectural-properties').innerText()).includes('모델 XY 좌표 범위'));
+  await page.getByLabel('객체 검색').fill('');
   // Seed retired records in this isolated test context and verify the migration.
   await page.evaluate(async()=>{
    localStorage.setItem('space-link-model',JSON.stringify({id:'energy-center-coordination-baseline'}));
@@ -76,7 +93,7 @@ const base='/energy-center-bim-bf/',dist=path.resolve('web/dist');
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1));
   await page.screenshot({path:path.join(output,phase+'-mobile.png'),fullPage:true});
   assert.deepEqual(errors,[]);assert.deepEqual(badRequests,[]);assert.deepEqual(apiRequests,[]);assert.deepEqual(retiredRequests,[]);
-  const result={status:'passed',origin,rendered,bf,errors,badRequests,apiRequests,desktopAndMobile:true,singleBuiltInModel:true,retiredStoragePurged:true,precisionFirstFloorRemoved:true,spatialCadReview:true};
+  const result={status:'passed',origin,rendered,bf,errors,badRequests,apiRequests,desktopAndMobile:true,singleBuiltInModel:true,retiredStoragePurged:true,precisionFirstFloorRemoved:true,spatialCadReview:true,routeExclusionSelectsRecord:true,junctionInspector:true};
   fs.writeFileSync(path.join(output,phase+'-results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
  }finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));}
 })().catch(e=>{console.error(e);process.exitCode=1});

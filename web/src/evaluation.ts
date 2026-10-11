@@ -1,6 +1,6 @@
 import type {Element,Profile} from './model';
 export type Status='pass'|'blocked'|'unknown';
-export interface Evaluation {id:string;status:Status;reasons:string[]}
+export interface Evaluation {id:string;status:Status;reasons:string[];name?:string;element_ids?:string[];floor_ids?:string[];spatial_kind?:'spaces'|'portals'|'vertical'}
 export const statusLabel={pass:'통과 가능',blocked:'통과 불가능',unknown:'추가 확인 필요'};
 export function evaluate(e:Element,p:Profile):Evaluation {
  const reasons:string[]=[];let blocked=false,unknown=false;

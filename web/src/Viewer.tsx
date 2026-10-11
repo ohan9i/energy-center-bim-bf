@@ -666,11 +666,11 @@ export default function Viewer({
               mesh.position.y=z;mesh.renderOrder=12;scene.add(mesh);spatialPolygons++;
             }
           };
-          for(const s of data.spaces){const pass=approved(s,token)&&s.step!==null&&s.step<=profile.max_step&&s.slope!==null&&s.slope<=profile.max_slope;
+          for(const s of data.spaces){const pass=Boolean(network)&&approved(s,token)&&s.step!==null&&s.step<=profile.max_step&&s.slope!==null&&s.slope<=profile.max_slope;
             overlay(pass?difference(s.region,network?.checks.get(s.floor_id)?.obstacles??obstacles.filter(b=>b.floor_id===s.floor_id).flatMap(b=>b.region)):s.region,s.floor_id,pass?0x10b981:0xf59e0b);}
           if(network)for(const [fid,check] of network.checks)overlay(check.obstacles,fid,0xef4444);
           else for(const b of obstacles)overlay(b.region,b.floor_id,0xef4444);
-          for(const g of data.portals)overlay(g.region,g.floor_id,approved(g,token)?0x0284c7:0xf59e0b);
+          for(const g of data.portals)overlay(g.region,g.floor_id,network?.space_edges.some(e=>e.via===g.id)?0x0284c7:approved(g,token)?0xef4444:0xf59e0b);
         }
       }catch{/* Invalid spatial ledgers cannot authorize a route. The review panel reports the error. */}
     }
