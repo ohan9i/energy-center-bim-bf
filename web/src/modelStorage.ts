@@ -1,6 +1,14 @@
 // Large BIM models exceed localStorage quotas once an earlier model is retained.
 // Keep legacy keys intact and store new revisions atomically in IndexedDB.
 const legacyCurrent='space-link-model',legacyPrevious='space-link-model-previous';
+const retiredIds=['demo-two-storey','energy-center-actual-1f2f'];
+export function isRetiredModel(model:{id:string}){
+ return retiredIds.some(id=>model.id===id||model.id.startsWith(id+'-'));
+}
+function retired(payload:string|null){
+ if(!payload)return false;
+ try{const model=JSON.parse(payload);return typeof model?.id==='string'&&isRetiredModel(model);}catch{return false;}
+}
 function local(key:string){try{return localStorage.getItem(key);}catch{return null;}}
 function open():Promise<IDBDatabase>{return new Promise((resolve,reject)=>{
  if(typeof indexedDB==='undefined'){reject(Error('IndexedDB unavailable'));return;}
@@ -14,11 +22,24 @@ function read(db:IDBDatabase,key:string):Promise<string|null>{return new Promise
  req.onsuccess=()=>resolve(typeof req.result==='string'?req.result:null);req.onerror=()=>reject(req.error);
 });}
 export async function loadModelRecords(){
- const legacy=local(legacyCurrent),older=local(legacyPrevious);let current:string|null=null,previous:string|null=null;
- try{const db=await open();try{[current,previous]=await Promise.all([read(db,'current'),read(db,'previous')]);}finally{db.close();}}catch{}
+ for(const key of [legacyCurrent,legacyPrevious]){
+  if(retired(local(key)))try{localStorage.removeItem(key);}catch{}
+ }
+ const retain=(payload:string|null)=>retired(payload)?null:payload;
+ const legacy=retain(local(legacyCurrent)),older=retain(local(legacyPrevious));let current:string|null=null,previous:string|null=null;
+ try{const db=await open();try{
+  [current,previous]=await Promise.all([read(db,'current'),read(db,'previous')]);
+  const keys=[retired(current)?'current':null,retired(previous)?'previous':null].filter((key):key is string=>key!==null);
+  if(keys.length)await new Promise<void>((resolve,reject)=>{
+   const tx=db.transaction('models','readwrite');for(const key of keys)tx.objectStore('models').delete(key);
+   tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error);tx.onerror=()=>reject(tx.error);
+  });
+ }finally{db.close();}}catch{}
+ current=retain(current);previous=retain(previous);
  return {current:current??legacy,previous:[...new Set([previous,older,current?legacy:null].filter((s):s is string=>s!==null&&s!==(current??legacy)))]};
 }
 export async function saveModelRecord(payload:string){
+ if(retired(payload))throw Error('삭제된 기본 모델은 다시 저장할 수 없습니다.');
  let db:IDBDatabase;
  try{db=await open();}catch{
   const previous=local(legacyCurrent);

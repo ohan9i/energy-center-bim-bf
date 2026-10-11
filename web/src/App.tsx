@@ -32,7 +32,7 @@ import Viewer from "./Viewer";
 import PrecisionReview from "./PrecisionReview";
 import BimInspector from "./BimInspector";
 import ObjectExplorer from "./ObjectExplorer";
-import { loadModelRecords, saveModelRecord } from "./modelStorage";
+import { isRetiredModel, loadModelRecords, saveModelRecord } from "./modelStorage";
 import {
   parseModel,
   elementSchema,
@@ -78,6 +78,7 @@ function download(data: BlobPart, name: string, type = "application/json") {
 }
 function checkedModel(data: unknown) {
   const m = parseModel(data);
+  if (isRetiredModel(m)) throw Error("삭제된 기본 모델입니다. 최신 통합 3D 모델을 사용하세요.");
   validateGeometry(m);
   return m;
 }
@@ -95,8 +96,8 @@ export default function App() {
     [plan, setPlan] = useState(false),
     [selected, setSelected] = useState(""),
     [query, setQuery] = useState("");
-  const [start, setStart] = useState("entrance"),
-    [end, setEnd] = useState("class2"),
+  const [start, setStart] = useState(""),
+    [end, setEnd] = useState(""),
     [route, setRoute] = useState<RouteResult | null>(null),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
@@ -110,8 +111,7 @@ export default function App() {
     [thickness, setThickness] = useState(".2");
   const [draft, setDraft] = useState(""),
     [editor, setEditor] = useState<"element" | "model" | "add" | null>(null),
-    [showConditions, setShowConditions] = useState(false),
-    [cadView, setCadView] = useState(false);
+    [showConditions, setShowConditions] = useState(false);
   const [bimWorkspace, setBimWorkspace] = useState(true),
     [category, setCategory] = useState("all");
   const [leftOpen, setLeftOpen] = useState(() => window.innerWidth > 1100),
@@ -218,7 +218,6 @@ export default function App() {
     setRoute(null);
     setSelected("");
     setFloor(m.is_example ? m.floors[0].id : "all");
-    setCadView(false);
     setCategory("all");
     setStart(m.places[0]?.id || "");
     setEnd(
@@ -230,28 +229,29 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      request(base + "models/demo.json").then((r) => r.json()),
+      request(base + "models/precision-rebuild.json").then((r) => r.json()),
       request(base + "rules.json").then((r) => r.json()),
     ])
       .then(async ([data, r]) => {
         if (cancelled) return;
-        const demo = checkedModel(data);
-        let savedModel: Model | null = null;
+        const published = checkedModel(data);
+        let current = published;
+        const restored: Model[] = [];
         setRules(r);
         setProfile(r.profiles.wheelchair);
-        setLibrary([demo]);
-        activate(demo);
         const records = await loadModelRecords();
         if (cancelled) return;
         try {
           if (records.current) {
             const m = checkedModel(JSON.parse(records.current));
-            savedModel = m;
-            setLibrary(m.id === demo.id ? [m] : [demo, m]);
-            activate(m);
+            if (m.id === published.id && Number(m.provenance.modelling_version ?? 0) >= Number(published.provenance.modelling_version ?? 0)) {
+              current = m;
+            } else {
+              restored.push({...m, id: m.id === published.id ? m.id + "-saved" : m.id});
+            }
           }
         } catch {
-          setMessage("이전에 저장한 모델을 읽지 못해 예제를 열었습니다.");
+          setMessage("이전에 저장한 모델을 읽지 못해 최신 통합 3D 모델을 열었습니다.");
         }
         records.previous.forEach((previous, i) => {
           try {
@@ -261,60 +261,12 @@ export default function App() {
                 id: old.id + "-previous-" + i,
                 name: old.name + " · 이전 저장본 " + (i + 1),
               };
-            setLibrary((list) => [
-              ...list.filter((x) => x.id !== retained.id),
-              retained,
-            ]);
+            restored.push(retained);
           } catch {}
         });
-        const openProject = (data: unknown) => {
-          if (cancelled) return;
-          const m = checkedModel(data);
-          let current = savedModel?.id === m.id ? savedModel : m;
-          if (
-            savedModel?.id === m.id &&
-            Number(savedModel.provenance.modelling_version ?? 0) <
-              Number(m.provenance.modelling_version ?? 0)
-          ) {
-            const retained = {
-              ...savedModel,
-              id: savedModel.id + "-saved",
-              name: savedModel.name + " · 이전 저장본",
-            };
-            setLibrary((list) => [
-              ...list.filter((x) => x.id !== savedModel!.id),
-              retained,
-            ]);
-            current = m;
-            setMessage(
-              "기존 브라우저 저장본은 건축물 목록에 보존하고 새 BIM 모델을 열었습니다.",
-            );
-          }
-          setLibrary((list) => [
-            ...list.filter((x) => x.id !== current.id),
-            current,
-          ]);
-          activate(current);
-        };
-        const loadPublished = () =>
-          request(base + "models/project.json")
-            .then((r) => r.json())
-            .then(openProject)
-            .catch(() => {})
-            .finally(loadRebuild);
-        const loadRebuild = async () => {
-          // The legacy project remains in the model library for comparison.
-          // Open the current coordination model in both local and public builds.
-          try {
-            const m = checkedModel(await request(base + "models/precision-rebuild.json").then(r => r.json()));
-            if (cancelled) return;
-            openProject(m);
-            setMessage("새 도면 기반 모델을 열었습니다. 미확정 3D 외피는 검증 BIM과 구분됩니다.");
-          } catch {
-            if (!cancelled) setMessage("새 재구축 자료를 불러오지 못해 기존 모델을 유지합니다.");
-          }
-          if (!cancelled) setInitializing(false);
-        };
+        setLibrary([current, ...restored.filter(m => m.id !== current.id)]);
+        activate(current);
+        setInitializing(false);
         if (editing) {
           request("/api/health")
             .then((r) => r.json())
@@ -323,13 +275,6 @@ export default function App() {
               setOda(h.oda_available);
             })
             .catch(() => {});
-          request("/api/project-model")
-            .then((r) => r.json())
-            .then(openProject)
-            .then(loadRebuild)
-            .catch(loadPublished);
-        } else {
-          loadPublished();
         }
       })
       .catch(fail);
@@ -1154,33 +1099,23 @@ export default function App() {
             </div>
             <div className="view-buttons">
               <button
-                aria-pressed={!plan && !cadView}
-                className={!plan && !cadView ? "active" : ""}
+                aria-pressed={!plan}
+                className={!plan ? "active" : ""}
                 onClick={() => {
                   setPlan(false);
-                  setCadView(false);
                 }}
               >
                 <Rotate3D size={15} /> 3D
               </button>
               <button
-                aria-pressed={plan && !cadView}
-                className={plan && !cadView ? "active" : ""}
+                aria-pressed={plan}
+                className={plan ? "active" : ""}
                 onClick={() => {
                   setPlan(true);
-                  setCadView(false);
                 }}
               >
                 <Square size={15} /> 평면
               </button>
-              {model.id === "energy-center-actual-1f2f" && api && (
-                <button
-                  className={cadView ? "active" : ""}
-                  onClick={() => setCadView(true)}
-                >
-                  CAD
-                </button>
-              )}
             </div>
             <label className="floor-selector">
               <Layers size={15} />
@@ -1198,15 +1133,7 @@ export default function App() {
               </select>
             </label>
           </div>
-          {cadView && model.id === "energy-center-actual-1f2f" ? (
-            <div className="cad-preview">
-              <img
-                src={"/api/project-plan/" + (floor === "all" ? "f1" : floor)}
-                alt="DWG geometry comparison"
-              />
-            </div>
-          ) : (
-            <Viewer
+          <Viewer
               model={model}
               floor={floor}
               plan={plan}
@@ -1214,8 +1141,7 @@ export default function App() {
               route={bimWorkspace ? null : route}
               profile={profile}
               onSelect={selectObject}
-            />
-          )}
+          />
           <div className="canvas-footer">
             <div className="model-hint">
               <Move size={13} />

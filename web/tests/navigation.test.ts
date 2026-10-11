@@ -4,7 +4,7 @@ import {parseModel,type Profile} from '../src/model';
 import {findRoute,floorCheck} from '../src/navigation';
 import {validateGeometry} from '../src/geometry';
 import {evaluate} from '../src/evaluation';
-const fixture=()=>parseModel(JSON.parse(readFileSync(new URL('../public/models/demo.json',import.meta.url),'utf8')));
+const fixture=()=>parseModel(JSON.parse(readFileSync(new URL('./fixtures/navigation-model.json',import.meta.url),'utf8')));
 const rules=JSON.parse(readFileSync(new URL('../public/rules.json',import.meta.url),'utf8'));
 const profile=(key='wheelchair'):Profile=>({...rules.profiles[key]});
 describe('collision-checked static navigation',()=>{

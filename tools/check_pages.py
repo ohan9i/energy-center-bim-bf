@@ -25,6 +25,8 @@ def main():
     assets=[ref for ref in references if '/assets/' in ref]
     assert assets and all(ref.startswith(base+'assets/') for ref in assets), 'Build with the same VITE_BASE_PATH first.'
     assert not any(p.suffix.lower()=='.dwg' or p.name.startswith('energy-center') for p in dist.rglob('*')), 'Private drawing output found in static build.'
+    assert not (dist/'models'/'demo.json').exists(), 'Retired example model found in static build.'
+    assert not (dist/'models'/'project.json').exists(), 'Retired BIM model found in static build.'
     with tempfile.TemporaryDirectory(prefix='bf-pages-check-') as temp:
         shutil.copytree(dist,Path(temp)/base.strip('/'))
         server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(QuietHandler,directory=temp))
@@ -36,29 +38,23 @@ def main():
                     assert r.status==200
                     return r.read()
             get(base)
-            demo=json.loads(get(base+'models/demo.json'));rules=json.loads(get(base+'rules.json'))
-            assert demo['is_example'] and 'wheelchair' in rules['profiles']
-            if (dist/'models'/'project.json').exists():
-                project=json.loads(get(base+'models/project.json'))
-                assert not project['is_example'] and len(project['floors'])==6
-                assert project['provenance']['publication']=='github_pages'
-                assert not any(e['verified'] for e in project['elements'])
-            if (dist/'models'/'precision-rebuild.json').exists():
-                content=get(base+'models/precision-rebuild.json').decode('utf-8')
-                coordination=json.loads(content)
-                assert coordination['provenance']['coordination_draft'] is True
-                assert coordination['provenance']['verified_solids']==0
-                assert not any(e['verified'] for e in coordination['elements'])
-                assert not re.search(r'[A-Z]:[\\/]',content), 'Local path found in published model'
-                for name in ('precision-rebuild-verified.ifc','precision-rebuild-coordination-draft.ifc'):
-                    assert get(base+'models/'+name).startswith(b'ISO-10303-21;'), 'Invalid IFC download'
+            rules=json.loads(get(base+'rules.json'))
+            assert 'wheelchair' in rules['profiles']
+            content=get(base+'models/precision-rebuild.json').decode('utf-8')
+            coordination=json.loads(content)
+            assert coordination['provenance']['coordination_draft'] is True
+            assert coordination['provenance']['verified_solids']==0
+            assert not any(e['verified'] for e in coordination['elements'])
+            assert not re.search(r'[A-Z]:[\\/]',content), 'Local path found in published model'
+            for name in ('precision-rebuild-verified.ifc','precision-rebuild-coordination-draft.ifc'):
+                assert get(base+'models/'+name).startswith(b'ISO-10303-21;'), 'Invalid IFC download'
             files=list((dist/'assets').iterdir())
             for file in files:get(base+'assets/'+file.name)
             workers=[p for p in files if p.name.startswith('route.worker-')]
             assert workers,'Route worker missing'
             js=''.join(p.read_text(encoding='utf-8') for p in files if p.suffix=='.js' and not p.name.startswith('route.worker-'))
             assert base+'assets/'+workers[0].name in js,'Worker reference ignores project base'
-            print(f'PASS: {base} HTML, demo, rules, {len(files)} assets, worker URL; no private drawing output. Browser rendering not tested.')
+            print(f'PASS: {base} HTML, coordination model, IFCs, rules, {len(files)} assets, worker URL; retired models absent. Browser rendering not tested.')
         finally:
             server.shutdown();server.server_close();thread.join(timeout=5)
 

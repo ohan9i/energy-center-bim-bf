@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
-  "id": "demo-two-storey",
-  "name": "공간이음 교육관 · 2층 예제",
+  "id": "navigation-test-fixture",
+  "name": "Navigation algorithm test fixture",
   "units": "m",
   "is_example": true,
   "revision": 0,
