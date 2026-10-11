@@ -66,7 +66,7 @@ describe('space-scoped BF graph and navigation geometry',()=>{
  it('does not authorize actual CAD candidates or revert to legacy slab routing',()=>{
   const m=parseModel(JSON.parse(readFileSync(new URL('../public/models/precision-rebuild.json',import.meta.url),'utf8')));
   const s=spatialData(m)!;expect(s.model_fingerprint).toBe(modelFingerprint(m));expect(()=>validateSpatial(m,s)).not.toThrow();
-  expect(s.spaces).toHaveLength(31);expect(s.portals).toHaveLength(98);expect(s.vertical).toHaveLength(10);
+  expect(s.spaces).toHaveLength(31);expect(s.portals).toHaveLength(88);expect(s.vertical).toHaveLength(10);
   const start=m.places.find(p=>p.floor_id==='f1')!,end=m.places.find(p=>p.floor_id==='f2')!;
   const lift=m.places.find(p=>p.floor_id==='f1'&&p.name.includes('E.V'))!;
   const hall=m.places.find(p=>p.floor_id==='f1'&&p.name.includes('홀'))!;

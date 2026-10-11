@@ -10,6 +10,7 @@ import ifcopenshell.validate
 from shapely.geometry import Polygon
 from .schema import Model
 from .geometry import solid_parts
+from .assembly_solids import mesh_volume
 
 
 def validate_file(model: Model, path: Path):
@@ -31,7 +32,7 @@ def validate_file(model: Model, path: Path):
         if obj.is_a('IfcBuildingElementPart'):
             evidence = props['Pset_ArchitecturalEvidence']
             e = elements[evidence['ParentElementId']]
-            index = next(i for i in range(len(e.components)) if obj.GlobalId == ifcopenshell.guid.compress(hashlib.md5((model.id+'/'+e.id+f'/component/{i}').encode()).hexdigest()))
+            index = next(i for i,c in enumerate(e.components) if obj.GlobalId == ifcopenshell.guid.compress(hashlib.md5((model.id+'/'+(c.id or e.id+f'/component/{i}')).encode()).hexdigest()))
             c = e.components[index]
             expected = [(Polygon(c.polygon, c.holes), e.z_offset+c.z_offset, c.height)]
             parts += 1
@@ -41,7 +42,7 @@ def validate_file(model: Model, path: Path):
             if e.components:
                 assert obj.Representation is None and len(obj.IsDecomposedBy[0].RelatedObjects) == len(e.components)
                 continue
-            expected = solid_parts(e, model.elements)
+            expected = [] if e.source.get('unresolved_no_representation') else solid_parts(e, model.elements)
         else:
             continue
         if not expected:
@@ -64,7 +65,7 @@ def validate_file(model: Model, path: Path):
             area = sum(p.area for p, _, _ in expected)
             assert abs(ifcopenshell.util.shape.get_area(mesh)-area) < max(.001, area*1e-5), f'{obj.Name}: IFC surface area / holes mismatch'
         else:
-            volume = sum(p.area*depth for p, _, depth in expected if depth is not None)
+            volume = mesh_volume(c.mesh) if obj.is_a('IfcBuildingElementPart') and c.mesh else sum(p.area*depth for p, _, depth in expected if depth is not None)
             assert abs(ifcopenshell.util.shape.get_volume(mesh)-volume) < max(.001, volume*1e-5), f'{obj.Name}: IFC solid volume mismatch'
     assert products == len(elements)
     assert parts == sum(len(e.components) for e in elements.values())

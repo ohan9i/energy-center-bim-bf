@@ -37,16 +37,8 @@ def refine_assemblies(elements,p):
             components+=parts(poly,'structural_slab',depth,-finish-depth,'concrete',['slab_thickness','finish_thickness'])
             components+=parts(poly,'floor_finish' if kind=='floor' else 'roof_finish',finish,-finish,'finish',['finish_thickness'])
         elif kind=='stair':
-            for c in e['components']:
-                c={**c,'source':dict(c['source'])}
-                if c['role']=='landing' and e['height'] is not None:
-                    c['height']=p['landing_thickness'];c['z_offset']-=c['height']
-                    c['source'].update(dimension_verified=False,geometry_status='provisional',parameter_keys=['landing_thickness'],material='concrete')
-                elif c['role']=='tread' and c['height'] is not None:
-                    # Stepped underside carries each riser to its neighbour; isolated thin steps are avoided.
-                    c['height']+=p['stair_support_thickness'];c['z_offset']-=p['stair_support_thickness']
-                    c['source'].update(dimension_verified=False,geometry_status='provisional',parameter_keys=['stair_support_thickness'],material='concrete')
-                components.append(c)
+            from .stair_assembly import refine_stair
+            components=refine_stair(e,p)
         elif kind in ('door','window') and not e['source'].get('marker_width_m'):
             if kind=='door':
                 a=e['source']['hinge'];b=e['source']['leaf_end'];line=LineString([a,b]);width=line.length
@@ -60,16 +52,32 @@ def refine_assemblies(elements,p):
                 if width<=2*p['frame_width'] or depth<.012:continue
                 a,b=corners[i],corners[i+1];ux=(b[0]-a[0])/width;uy=(b[1]-a[1])/width
                 cx,cy=poly.centroid.coords[0];z=p['window_sill'];height=p['window_height']
+                axis=e['source'].get('window_plan_axis')
+                if axis:
+                    cx,cy=axis['origin'];ux,uy=axis['direction'];width=axis['width_m'];depth=min(.2,axis['depth_m'])
             nx,ny=-uy,ux
             def rectangle(lo,hi,d):
                 return Polygon([(cx+ux*s+nx*t,cy+uy*s+ny*t) for s,t in [(lo,-d/2),(hi,-d/2),(hi,d/2),(lo,d/2)]])
             f=p['frame_width'];left=-width/2;right=width/2
-            for lo,hi in ((left,left+f),(right-f,right)):
-                components+=parts(rectangle(lo,hi,depth),'jamb',height,z,'metal',['frame_width',kind+'_height'])
-            components+=parts(rectangle(left+f,right-f,depth),'head_frame',f,z+height-f,'metal',['frame_width',kind+'_height'])
+            measured_frame=e['source'].get('native_frame_evidence') if kind=='window' else None
+            jamb_f=measured_frame['jamb_width_m'] if measured_frame else f
+            for lo,hi in ((left,left+jamb_f),(right-jamb_f,right)):
+                jambs=parts(rectangle(lo,hi,depth),'jamb',height,z,'metal',([kind+'_height'] if measured_frame else ['frame_width',kind+'_height']))
+                if measured_frame:
+                    for jamb in jambs:jamb['source']['plan_frame_evidence']=measured_frame
+                components+=jambs
+            components+=parts(rectangle(left+jamb_f,right-jamb_f,depth),'head_frame',f,z+height-f,'metal',['frame_width',kind+'_height'])
             if kind=='window':
-                components+=parts(rectangle(left+f,right-f,depth),'sill_frame',f,z,'metal',['frame_width','window_sill'])
-                components+=parts(rectangle(left+f,right-f,min(depth,p['glass_thickness'])),'glass',height-2*f,z+f,'glazing',['glass_thickness','window_height','window_sill'])
+                components+=parts(rectangle(left+jamb_f,right-jamb_f,depth),'sill_frame',f,z,'metal',['frame_width','window_sill'])
+                divisions=sorted(s for s in e['source'].get('measured_mullion_offsets_m',[]) if left+2*f<s<right-2*f)
+                cursor=left+jamb_f
+                for s in divisions:
+                    span=next((v for v in e['source'].get('measured_mullion_spans_m',[]) if abs((v[0]+v[1])/2-s)<.001),[s-f/2,s+f/2])
+                    lo,hi=span
+                    if lo>cursor:components+=parts(rectangle(cursor,lo,min(depth,p['glass_thickness'])),'glass',height-2*f,z+f,'glazing',['glass_thickness','window_height','window_sill'])
+                    components+=parts(rectangle(lo,hi,depth),'mullion',height-2*f,z+f,'metal',['window_height'] if span in e['source'].get('measured_mullion_spans_m',[]) else ['frame_width','window_height'])
+                    cursor=hi
+                if right-jamb_f>cursor:components+=parts(rectangle(cursor,right-jamb_f,min(depth,p['glass_thickness'])),'glass',height-2*f,z+f,'glazing',['glass_thickness','window_height','window_sill'])
             else:
                 components+=parts(rectangle(left+f,right-f,p['door_leaf_thickness']),'door_leaf',height-f,z,'door',['door_leaf_thickness','door_height'])
             e['source']['provisional_opening']=dict(z_offset=z,height=height,dimension_verified=False,
@@ -106,6 +114,11 @@ def refine_assemblies(elements,p):
             if e['height']>head:components+=parts(shell,'shaft_lintel',e['height']-head,head,'concrete',['shaft_lining_thickness','door_height'])
             e['source']['entrance_status']='candidate door overlap' if doors else 'unresolved; no entrance fabricated'
         if components:
+            roles=Counter()
+            for c in components:
+                index=roles[c['role']];roles[c['role']]+=1
+                c['id']=e['id']+'/component/'+c['role']+'/'+str(index)
+                c['source']['parent_element_id']=e['id']
             e['components']=components
             e['source']['assembly_status']='provisional_not_drawing_verified'
             e['source']['parameter_file']='bf_bim/assembly_parameters.json'

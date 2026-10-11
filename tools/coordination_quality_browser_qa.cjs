@@ -7,7 +7,7 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
  fs.mkdirSync(out,{recursive:true});
  try{
   const model=JSON.parse(fs.readFileSync('web/public/models/precision-rebuild.json','utf8'));
-  assert.equal(model.provenance.modelling_version,9);
+  assert.equal(model.provenance.modelling_version,10);
   const base='/energy-center-bim-bf/';
   let origin=process.env.BIM_QA_URL;
   if(!origin){server=http.createServer((req,res)=>{
@@ -37,6 +37,33 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   assert.equal(await page.getByLabel('BIM 건축물').inputValue(),model.id);
   assert.equal(await canvas.getAttribute('data-model-components'),String(model.elements.reduce((n,e)=>n+e.components.length,0)));
   assert.equal(await page.locator('.fallback').count(),0);
+  if(process.argv.includes('--walls-only')){
+   for(const fid of ['f1','f2']){
+    const e=model.elements.filter(e=>e.floor_id===fid&&e.source.native_wall_closure).sort((a,b)=>b.source.native_wall_closure.recovered_area_m2-a.source.native_wall_closure.recovered_area_m2)[0];
+    assert(e&&e.components.every(c=>c.mesh));
+    await page.getByLabel('표시 층').selectOption(fid);await page.getByLabel('객체 검색').fill(e.id);
+    await page.locator(`.object-row[title$="${e.id}"]`).click();
+    await page.getByRole('button',{name:'선택 확대',exact:true}).click();await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();
+    await screen('after-recovered-wall-'+fid);
+    await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();await page.getByLabel('객체 검색').fill('');
+   }
+   assert.deepEqual(errors,[]);assert.deepEqual(badRequests,[]);
+   fs.writeFileSync(path.join(out,'wall-results.json'),JSON.stringify({status:'passed',origin,screens,errors,badRequests},null,2));
+   console.log(JSON.stringify({status:'passed',screens:screens.length,errors,badRequests}));return;
+  }
+  if(process.argv.includes('--doors-only')){
+   const id='coord-48640c9874f6dd4d4424';
+   await page.getByLabel('표시 층').selectOption('f1');await page.getByLabel('객체 검색').fill(id);
+   await page.locator(`.object-row[title$="${id}"]`).click();
+   const text=await page.locator('.architectural-properties').innerText();
+   assert(text.includes('SSD-3'));assert(text.includes('2.400'));assert(text.includes('2.800'));assert(text.includes('2.100'));
+   await page.getByRole('button',{name:'선택 확대',exact:true}).click();
+   await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();
+   await screen('after-ssd3-closed');await tools('표시 설정');await range('문 개방 표시',100);
+   await screen('after-ssd3-open');assert.deepEqual(errors,[]);assert.deepEqual(badRequests,[]);
+   fs.writeFileSync(path.join(out,'door-results.json'),JSON.stringify({status:'passed',origin,screens,errors,badRequests},null,2));
+   console.log(JSON.stringify({status:'passed',screens:screens.length,errors,badRequests}));return;
+  }
   if(process.argv.includes('--authoring-only')){
    const id='coord-7856c0b97b13a29f12cb';
    await page.getByLabel('표시 층').selectOption('f1');await page.getByLabel('객체 검색').fill(id);

@@ -6,6 +6,7 @@ import ifcopenshell.api
 import ifcopenshell.guid
 from shapely.geometry.polygon import orient
 from shapely.geometry import Polygon
+from shapely.ops import unary_union
 from .geometry import footprint, polygon_parts, solid_parts,opening_footprint,architectural_footprint
 from .schema import Model
 
@@ -13,13 +14,21 @@ CLASSES={'wall':'IfcWall','column':'IfcColumn','beam':'IfcBeam','floor':'IfcSlab
     'space':'IfcSpace','corridor':'IfcSpace','stair':'IfcStair','ramp':'IfcRamp',
     'elevator':'IfcTransportElement','obstacle':'IfcBuildingElementProxy','unclassified':'IfcBuildingElementProxy'}
 
-def export_ifc(model:Model):
+def export_ifc(model:Model, *, coordination_draft=False):
+    if coordination_draft and (model.provenance.get('export_status') != 'coordination_draft' or any(e.verified for e in model.elements)):
+        raise ValueError('Draft export requires an explicitly labelled, unverified coordination model')
+    if model.provenance.get('precision_rebuild') and not coordination_draft:
+        raise ValueError('미확정 재구축 미리보기는 IFC로 출력할 수 없습니다. 별도의 verified.ifc를 사용하세요.')
     f=ifcopenshell.api.run('project.create_file',version='IFC4')
     def root(cls,name,identity):
         obj=ifcopenshell.api.run('root.create_entity',f,ifc_class=cls,name=name)
         obj.GlobalId=ifcopenshell.guid.compress(hashlib.md5((model.id+'/'+identity).encode()).hexdigest())
         return obj
     project=root('IfcProject',model.name,'project')
+    if coordination_draft:
+        ps=ifcopenshell.api.run('pset.add_pset',f,product=project,name='Pset_CoordinationDraft')
+        ifcopenshell.api.run('pset.edit_pset',f,pset=ps,properties={'Status':'DRAFT - NOT DESIGN VERIFIED','VerifiedSolids':int(model.provenance.get('verified_solids',0)),
+            'Assumptions':f.create_entity('IfcText',json.dumps(model.provenance.get('assumption_parameters',{}),ensure_ascii=False))})
     unit=ifcopenshell.api.run('unit.add_si_unit',f,unit_type='LENGTHUNIT')
     ifcopenshell.api.run('unit.assign_unit',f,units=[unit])
     ctx=ifcopenshell.api.run('context.add_context',f,context_type='Model')
@@ -38,13 +47,18 @@ def export_ifc(model:Model):
         ifcopenshell.api.run('aggregate.assign_object',f,products=[storey],relating_object=building)
         floors[floor.id]=storey
     elevations={r.id:r.elevation for r in model.floors}
-    styled=[];objects={}
+    styled=[];objects={};member_types={}
     def placement(obj):
         obj.ObjectPlacement=f.create_entity('IfcLocalPlacement',RelativePlacement=f.create_entity(
             'IfcAxis2Placement3D',Location=f.create_entity('IfcCartesianPoint',Coordinates=[0.,0.,0.])))
-    def component_geometry(obj,poly,z,depth):
+    def component_geometry(obj,poly,z,depth,mesh=None):
         poly=orient(poly,sign=1.)
-        if depth is None:
+        if mesh is not None:
+            coordinates=f.create_entity('IfcCartesianPointList3D',CoordList=[(float(x),float(y),float(v+z)) for x,y,v in mesh.vertices])
+            item=f.create_entity('IfcTriangulatedFaceSet',Coordinates=coordinates,Closed=True,
+                CoordIndex=[tuple(i+1 for i in t) for t in mesh.triangles])
+            rep_type='Tessellation'
+        elif depth is None:
             def loop(coords):return f.create_entity('IfcPolyLoop',Polygon=[f.create_entity('IfcCartesianPoint',Coordinates=[float(x),float(y),float(z)]) for x,y in list(coords)[:-1]])
             bounds=[f.create_entity('IfcFaceOuterBound',Bound=loop(poly.exterior.coords),Orientation=True)]
             bounds.extend(f.create_entity('IfcFaceBound',Bound=loop(r.coords),Orientation=True) for r in poly.interiors)
@@ -62,6 +76,20 @@ def export_ifc(model:Model):
         if e.excluded:continue
         obj=root(CLASSES[e.type],e.name,e.id)
         objects[e.id]=obj
+        definition=e.source.get('type_definition')
+        if definition and e.type in ('window','door'):
+            key=json.dumps({k:definition.get(k) for k in ('kind','mark','width_m','height_m','glass_thickness_m')},sort_keys=True)
+            if key not in member_types:
+                identity=e.type+'-type/'+hashlib.sha256(key.encode()).hexdigest()[:20]
+                member_types[key]=root('IfcWindowType' if e.type=='window' else 'IfcDoorType',definition['mark'],identity)
+                member_types[key].PredefinedType=e.type.upper()
+                if e.type=='door':member_types[key].OperationType='NOTDEFINED'
+                ps=ifcopenshell.api.run('pset.add_pset',f,product=member_types[key],name='Pset_DrawingTypeEvidence')
+                ifcopenshell.api.run('pset.edit_pset',f,pset=ps,properties={
+                    'Status':definition['status'],'DesignVerified':False,
+                    'Specifications':f.create_entity('IfcText',json.dumps(definition,ensure_ascii=False))})
+            ifcopenshell.api.run('type.assign_type',f,related_objects=[obj],relating_type=member_types[key],should_map_representations=False)
+            obj.OverallWidth=definition['width_m'];obj.OverallHeight=definition['height_m']
         styled.append((obj,e.type,e.source.get('material','unknown')))
         # Profiles and solid elevations are in model world coordinates. An identity
         # placement preserves those coordinates and satisfies IFC's product rule.
@@ -84,15 +112,20 @@ def export_ifc(model:Model):
             'AssemblyComponents':f.create_entity('IfcText',json.dumps([c.model_dump() for c in e.components],ensure_ascii=False)),
             'PlanAreaM2':float(Polygon(e.polygon,e.holes).area),
             'QuantityVerified':False})
+        if e.source.get('unresolved_no_representation'):
+            continue
         if e.components:
             children=[]
             for i,c in enumerate(e.components):
-                part=root('IfcBuildingElementPart',f'{e.name} · {c.role} {i+1}',e.id+f'/component/{i}')
+                identity=c.id or e.id+f'/component/{i}'
+                part=root('IfcBuildingElementPart',f'{e.name} · {c.role} {i+1}',identity)
                 placement(part);children.append(part)
-                component_geometry(part,Polygon(c.polygon,c.holes),elevations[e.floor_id]+e.z_offset+c.z_offset,c.height)
+                component_geometry(part,Polygon(c.polygon,c.holes),elevations[e.floor_id]+e.z_offset+c.z_offset,c.height,c.mesh)
                 props=ifcopenshell.api.run('pset.add_pset',f,product=part,name='Pset_ArchitecturalEvidence')
-                ifcopenshell.api.run('pset.edit_pset',f,pset=props,properties={'ParentElementId':e.id,'Role':c.role,
-                    'GeometryStatus':'reconstruction_candidate','CADSource':f.create_entity('IfcText',json.dumps(c.source,ensure_ascii=False))})
+                ifcopenshell.api.run('pset.edit_pset',f,pset=props,properties={'ParentElementId':e.id,'ComponentId':identity,'Role':c.role,
+                    'GeometryStatus':str(c.source.get('geometry_status','reconstruction_candidate')),
+                    'DimensionVerified':bool(c.source.get('dimension_verified',False)),
+                    'CADSource':f.create_entity('IfcText',json.dumps(c.source,ensure_ascii=False))})
                 styled.append((part,'window' if c.source.get('material')=='glazing' else 'column' if c.source.get('material')=='metal' else 'floor' if c.source.get('material')=='finish' else e.type,c.source.get('material',e.source.get('material','unknown'))))
             ifcopenshell.api.run('aggregate.assign_object',f,products=children,relating_object=obj)
             continue
@@ -117,7 +150,8 @@ def export_ifc(model:Model):
             # IFC engines apply IfcRelVoidsElement. Export an unsliced host so the
             # boolean is evaluated once; pre-slicing followed by void subtraction
             # can erase thin finish fragments through OCCT tolerances.
-            pieces=[(p,e.z_offset,e.height) for p in polygon_parts(architectural_footprint(e))]
+            envelopes=e.source.get('architectural_vertical_profiles')
+            pieces=[(Polygon(q['polygon'],q.get('holes',[])),q['z_offset'],q['height']) for q in envelopes] if envelopes is not None else [(p,e.z_offset,e.height) for p in polygon_parts(architectural_footprint(e))]
         for poly,relative_z,depth in pieces:
             if depth is None:
                 # Landing surfaces are retained separately below, without fabricated slab thickness.
@@ -142,9 +176,21 @@ def export_ifc(model:Model):
         if height is None:continue
         filled=False
         for wall in model.elements:
-            if wall.id not in objects or wall.type!='wall' or wall.floor_id!=e.floor_id or wall.height is None:continue
-            intersection=architectural_footprint(wall).intersection(opening_footprint(e))
-            lo=max(z,wall.z_offset);hi=min(z+height,wall.z_offset+wall.height)
+            if wall.id not in objects or wall.type!='wall' or wall.floor_id!=e.floor_id:continue
+            if wall.height is None:
+                # Coordination hosts have pre-cut component bodies and no parent
+                # height. Preserve their explicit envelope instead of dropping
+                # the semantic opening or inventing a parent solid.
+                envelope=wall.source.get('assumptions',{}).get('height',{}).get('value_m')
+                if not wall.components or envelope is None:continue
+                records=[q for q in e.source.get('host_openings',[]) if q['host_wall_id']==wall.id]
+                if not records:continue
+                intersection=unary_union([Polygon(q['polygon'],q.get('holes',[])) for q in records])
+                host_height=envelope
+            else:
+                intersection=architectural_footprint(wall).intersection(opening_footprint(e))
+                host_height=wall.height
+            lo=max(z,wall.z_offset);hi=min(z+height,wall.z_offset+host_height)
             if hi<=lo:continue
             for i,poly in enumerate(polygon_parts(intersection)):
                 if poly.area<1e-6:continue

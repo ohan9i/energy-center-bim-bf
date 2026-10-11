@@ -10,6 +10,20 @@ const model=()=>parseModel({schema_version:'1.0',id:'test',name:'Test',units:'m'
  {id:'door',name:'Door',type:'door',floor_id:'f1',polygon:[[1,-.1],[2,-.1],[2,.3],[1,.3]],height:2.1},
  {id:'window',name:'Window',type:'window',floor_id:'f1',polygon:[[3,-.1],[5,-.1],[5,.3],[3,.3]],height:1.2,z_offset:.9}]});
 describe('architectural BIM geometry',()=>{
+ it('rotates both halves of a double door around their own hinges, retaining glass and fixed frame',()=>{
+  const m=model(),e=m.elements[1];
+  e.source={hinge:[0,0],leaf_end:[2,0],swing_end:[0,2]};
+  e.components=[
+   {id:'left',role:'door_leaf',polygon:[[0,0],[1,0],[1,.01],[0,.01]],holes:[],z_offset:0,height:2.1,source:{hinge:[0,0],leaf_end:[1,0],swing_end:[0,1],material:'glazing'},mesh:null},
+   {id:'right',role:'door_leaf',polygon:[[1,0],[2,0],[2,.01],[1,.01]],holes:[],z_offset:0,height:2.1,source:{hinge:[2,0],leaf_end:[1,0],swing_end:[2,1],material:'glazing'},mesh:null},
+   {id:'fixed',role:'head_frame',polygon:[[0,0],[2,0],[2,.06],[0,.06]],holes:[],z_offset:2.1,height:.06,source:{},mesh:null},
+  ];
+  const before=JSON.stringify(e),p=renderPieces(e,m,true,1);
+  expect(p[0].poly[0][1][0]).toBeCloseTo(0);expect(p[0].poly[0][1][1]).toBeCloseTo(1);
+  expect(p[1].poly[0][0][0]).toBeCloseTo(2);expect(p[1].poly[0][0][1]).toBeCloseTo(1);
+  expect(p[0].material).toBe('glazing');expect(p[2].poly[0]).toEqual(e.components[2].polygon);
+  expect(JSON.stringify(e)).toBe(before);
+ });
  it('retains window sill and opening head, matching IFC vertical slices',()=>{
   const m=model(),parts=renderPieces(m.elements[0],m);
   const areaAt=(z:number)=>parts.filter(p=>p.z<=z&&z<p.z+p.height!).reduce((sum,p)=>sum+planArea({polygon:p.poly[0],holes:p.poly.slice(1)}),0);

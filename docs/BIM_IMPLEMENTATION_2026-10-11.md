@@ -1,5 +1,7 @@
 # BIM 정확도 개선 구현 결과
 
+2026-10-12 최신 revision 7의 전 층 출입문 복원, 벽 접합부 96개 복구와 남은 공간 분할 문제는 [건물 전체 정밀 검토 결과](BIM_WHOLE_BUILDING_PRECISION_2026-10-12.md)에 기록한다. 아래 내용은 이전 단계의 기록이다.
+
 최신 revision 6의 원본 프레임·창호 입면 규격·복층유리·IFC 관계 수정은 [작성 품질 개선 결과](BIM_AUTHORING_IMPROVEMENT_2026-10-11.md)를 참고한다. 앞선 revision 5는 [집중 개선 결과](BIM_FOCUSED_IMPROVEMENT_2026-10-11.md)에 있다. 아래 revision 3·4의 기록과 구분한다.
 
 후속 종합 개선(revision 4)의 호스트 참조 수정·경로 차단·접합 검사와 최신 검증 결과는 [BIM·BF 연결 신뢰성 개선](BIM_BF_RELIABILITY_2026-10-11.md)을 참고한다. 아래 revision 3의 기록과 구분한다.

@@ -3,7 +3,7 @@ from collections import defaultdict
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 from shapely import set_precision
-from .geometry import polygon_parts
+from .geometry import polygon_parts,slab_shape
 
 
 def close_column_face_gaps(slab,columns,protected_voids):
@@ -24,9 +24,19 @@ def close_column_face_gaps(slab,columns,protected_voids):
 def resolve_joints(elements,parameters):
     groups=defaultdict(list)
     for e in elements:groups[e['floor_id']].append(e)
-    count=0;removed=0.;trimmed=0
+    count=0;removed=0.;trimmed=0;partial=0
     for fid,es in groups.items():
         occupied={}
+        slabs_here=unary_union([slab_shape(e) for e in es if e['type'] in ('floor','roof')])
+        outline=unary_union([Polygon(g.exterior) for g in polygon_parts(slabs_here)])
+        courts=unary_union([Polygon(e['polygon'],e.get('holes',[])) for e in es if e['type']=='opening'])
+        perimeter=unary_union([g.boundary for g in polygon_parts(outline)+polygon_parts(courts)])
+        for e in es:
+            if e['type']=='wall' and not e['source'].get('marker_width_m'):
+                p=Polygon(e['polygon'],e.get('holes',[]))
+                exterior=e['source'].get('material')=='finish' or not perimeter.is_empty and p.distance(perimeter)<.3
+                e['source']['envelope_role']='exterior_candidate' if exterior else 'interior_candidate'
+                e['source']['envelope_classification_verified']=False
         columns=[Polygon(e['polygon'],e.get('holes',[])) for e in es if e['type']=='column' and e['height'] is not None]
         column_union=unary_union(columns)
         # Resolve larger measured wall bands first; position markers do not own solids.
@@ -52,16 +62,28 @@ def resolve_joints(elements,parameters):
     # Avoid running walls and columns into the next level's provisional slab.
     next_floor={'b1':'f1','f1':'f2','f2':'f3','f3':'f4','f4':'roof'}
     for fid,target in next_floor.items():
-        slabs=unary_union([Polygon(e['polygon'],e.get('holes',[])) for e in groups[target] if e['type'] in ('floor','roof')])
+        slabs=unary_union([slab_shape(e) for e in groups[target] if e['type'] in ('floor','roof')])
         for e in groups[fid]:
             if e['type'] not in ('wall','column') or e['height'] is None:continue
             p=Polygon(e['polygon'],e.get('holes',[]))
-            # Trim only when the next slab covers the entire member section.
-            if slabs.buffer(.002).covers(p):
-                e['source']['untrimmed_storey_height_m']=e['height']
-                e['height']-=parameters['slab_thickness']+parameters['finish_thickness']
-                e['source']['height_source']='provisional upper-slab underside; original storey interval retained separately'
-                trimmed+=1
+            profiles=e['source'].get('architectural_wall_profiles')
+            shape=unary_union([Polygon(q[0],q[1:]) for q in profiles]) if profiles is not None else p
+            # A 1 mm guard prevents snapping an outside fragment back into the
+            # slab. This is a display boolean tolerance, not a measured width.
+            protected=slabs.buffer(.001,join_style=2)
+            covered=set_precision(shape.intersection(protected),.001);uncovered=set_precision(shape.difference(protected),.001)
+            depth=parameters['slab_thickness']+parameters['finish_thickness']
+            if covered.area>1e-8 and e['height']>depth:
+                # Separate display / IFC envelopes. Original height and route
+                # footprint are never overwritten by a provisional slab depth.
+                e['source']['architectural_vertical_profiles']=[
+                    dict(polygon=list(g.exterior.coords)[:-1],holes=[list(r.coords)[:-1] for r in g.interiors],
+                        z_offset=e.get('z_offset',0),height=height,geometry_status='provisional' if clipped else 'inferred')
+                    for geometry,height,clipped in ((covered,e['height']-depth,True),(uncovered,e['height'],False))
+                    for g in polygon_parts(geometry) if g.area>1e-8]
+                e['source']['joint_vertical_status']='upper slab underside candidate; original element height preserved'
+                e['source']['joint_vertical_guard_m']=.001
+                trimmed+=1;partial+=int(uncovered.area>1e-8)
     return dict(resolved_wall_junctions=count,removed_duplicate_plan_area_m2=removed,
-        members_trimmed_to_provisional_slab=trimmed,original_route_footprints_preserved=True,
-        limitation='Finish interfaces and partially covered upper-slab intersections still need detailed section review.')
+        members_trimmed_to_provisional_slab=trimmed,partially_covered_members=partial,original_route_footprints_preserved=True,
+        original_heights_preserved=True,limitation='Slab depths, finish interfaces and member tops still require detailed section review.')

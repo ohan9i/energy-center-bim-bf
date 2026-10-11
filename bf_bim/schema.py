@@ -5,6 +5,27 @@ from shapely.geometry import Polygon, Point as ShapePoint
 Kind = Literal['wall', 'column', 'beam', 'floor', 'roof', 'window', 'opening', 'space', 'corridor', 'door', 'stair', 'ramp', 'elevator', 'obstacle', 'unclassified']
 Point = tuple[float, float]
 
+class SolidMesh(BaseModel):
+    """Closed, consistently oriented triangles; component-local Z, model XY."""
+    model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
+    vertices: list[tuple[float, float, float]] = Field(min_length=4, max_length=10000)
+    triangles: list[tuple[int, int, int]] = Field(min_length=4, max_length=20000)
+
+    @model_validator(mode='after')
+    def valid_mesh(self):
+        from collections import Counter
+        edges = Counter()
+        volume = 0.
+        for a,b,c in self.triangles:
+            if min(a,b,c)<0 or max(a,b,c)>=len(self.vertices) or len({a,b,c})!=3:
+                raise ValueError('솔리드 삼각형의 정점 참조가 잘못되었습니다.')
+            for i,j in ((a,b),(b,c),(c,a)):edges[(i,j)]+=1
+            u,v,w=(self.vertices[i] for i in (a,b,c))
+            volume += sum(u[i]*(v[(i+1)%3]*w[(i+2)%3]-v[(i+2)%3]*w[(i+1)%3]) for i in range(3))/6
+        if any(n!=1 or edges[(j,i)]!=1 for (i,j),n in edges.items()) or volume<=1e-10:
+            raise ValueError('솔리드는 닫힌 양의 체적과 일관된 면 방향이 필요합니다.')
+        return self
+
 class Record(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
 
@@ -16,17 +37,23 @@ class Properties(Record):
 
 class Component(Record):
     """Measured assembly geometry in model XY, Z relative to the parent base."""
+    id: str = ''
     role: str
     polygon: list[Point] = Field(min_length=3, max_length=2000)
     holes: list[list[Point]] = []
     height: float | None = Field(None, gt=0, le=100)
     z_offset: float = 0
     source: dict = {}
+    mesh: SolidMesh | None = None
 
     @model_validator(mode='after')
     def valid_geometry(self):
         if not Polygon(self.polygon, self.holes).is_valid or Polygon(self.polygon, self.holes).area < 1e-8:
             raise ValueError('조립체 구성요소의 다각형이 유효하지 않습니다.')
+        if self.mesh:
+            zs=[v[2] for v in self.mesh.vertices]
+            if self.height is None or abs(min(zs))>1e-7 or abs(max(zs)-self.height)>1e-7:
+                raise ValueError('솔리드 정점 Z와 구성요소 높이가 다릅니다.')
         return self
 
 class Element(Record):
@@ -89,6 +116,9 @@ class Model(Record):
             ids = [r.id for r in records]
             if len(ids) != len(set(ids)):
                 raise ValueError('중복 ID가 있습니다.')
+        component_ids=[c.id for e in self.elements for c in e.components if c.id]
+        if len(component_ids)!=len(set(component_ids)) or set(component_ids)&{e.id for e in self.elements}:
+            raise ValueError('조립체 구성요소 ID가 중복됩니다.')
         floors = {r.id for r in self.floors}
         elems = {r.id: r for r in self.elements}
         places = {r.id: r for r in self.places}

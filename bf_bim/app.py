@@ -41,6 +41,56 @@ def project_model():
     if not path.is_file():raise HTTPException(404,'실제 도면 모델이 아직 생성되지 않았습니다.')
     return Model.model_validate_json(path.read_text(encoding='utf-8'))
 
+REBUILD_DIR=Path(__file__).resolve().parents[1]/'cad_output/precision-rebuild'
+
+@app.get('/api/rebuilt-model')
+def rebuilt_model():
+    path=REBUILD_DIR/'coordination-v2/preview.json'
+    if not path.is_file():path=REBUILD_DIR/'preview.json'
+    if not path.is_file():raise HTTPException(404,'python -m bf_bim.precise.rebuild를 실행하세요.')
+    return FileResponse(path,media_type='application/json')
+
+@app.get('/api/rebuilt-ifc')
+def rebuilt_ifc():
+    path=REBUILD_DIR/'coordination-v2/energy-center-Verified.ifc'
+    if not path.is_file():path=REBUILD_DIR/'verified.ifc'
+    if not path.is_file():raise HTTPException(404,'검증 형상 IFC가 아직 생성되지 않았습니다.')
+    return FileResponse(path,media_type='application/x-step',filename='energy-center-verified.ifc')
+
+@app.get('/api/rebuilt-draft-ifc')
+def rebuilt_draft_ifc():
+    path=REBUILD_DIR/'coordination-v2/energy-center-Coordination-Draft.ifc'
+    if not path.is_file():raise HTTPException(404,'Coordination Draft를 먼저 생성하세요.')
+    return FileResponse(path,media_type='application/x-step',filename='energy-center-Coordination-Draft.ifc')
+
+# Phase-1 precision review is a separate, read-only artifact namespace.
+# It never activates, persists, publishes or replaces the legacy model.
+PRECISION_DIR=Path(__file__).resolve().parents[1]/'cad_output/precision-stage1'
+
+@app.get('/api/precision/{artifact}')
+def precision_artifact(artifact:str):
+    allowed={'pilot':'pilot.json','drawings':'drawings.json','observations':'observations.json',
+             'cross-references':'cross-references.json','summary':'build-summary.json'}
+    name=allowed.get(artifact)
+    if name is None:raise HTTPException(404,'지원하지 않는 정밀 검토 자료입니다.')
+    path=PRECISION_DIR/name
+    if not path.is_file():raise HTTPException(404,'정밀 1층 자료가 없습니다. python -m bf_bim.precise.stage1 --extract-all을 실행하세요.')
+    return FileResponse(path,media_type='application/json')
+
+@app.get('/api/precision-export/ifc')
+def precision_ifc():
+    from .precise.schema import Member,Observation,Registration
+    from .precise.validation import export_verified_ifc
+    try:
+        data=json.loads((PRECISION_DIR/'pilot.json').read_text(encoding='utf-8'))
+        facts=json.loads((PRECISION_DIR/'observations.json').read_text(encoding='utf-8'))
+        output=export_verified_ifc([Member.model_validate(m) for m in data['members']],
+                                  [Observation.model_validate(e) for e in facts],
+                                  Registration.model_validate(data['registration']))
+        return Response(output,media_type='application/x-step')
+    except FileNotFoundError:raise HTTPException(404,'정밀 검토 자료가 없습니다.')
+    except ValueError as exc:raise HTTPException(422,str(exc)) from exc
+
 @app.get('/api/project-plan/{floor}')
 def project_plan(floor:str):
     paths={'b1':Path('cad_output/detailed-basement.png'),'f1':Path('cad_output/detailed-first.png'),'f2':Path('cad_output/detailed-second.png'),

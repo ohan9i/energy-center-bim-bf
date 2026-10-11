@@ -11,5 +11,9 @@
   "door_leaf_thickness": 0.04,
   "glass_thickness": 0.01,
   "shaft_lining_thickness": 0.12,
+  "handrail_height": 0.9,
+  "handrail_diameter": 0.038,
+  "railing_post_diameter": 0.024,
+  "railing_post_spacing": 0.9,
   "note": "All numeric values are editable reconstruction assumptions, not measured specifications. Slab boundary, window schedule matching, shaft lining and stair direction still require review. No beam placement is inferred from column proximity."
 }

@@ -58,6 +58,7 @@ export default function BimInspector({
     after_outside_footprint_m2:number}|undefined;
   const windowSchedule = item?.source.schedule_assignment as {mark:string;width_m:number;height_m:number;sill_m:number;
     glass_thickness_m:number;glazing_build_up_m:number[]|null;scope_text:string;description:string[]}|undefined;
+  const doorSchedule = item?.source.door_schedule_assignment as {mark:string;width_m:number;height_m:number;leaf_head_m:number;scope_text:string}|undefined;
   const survey = model.provenance.drawing_evidence as
     | {
         column_sections?: {
@@ -129,8 +130,8 @@ export default function BimInspector({
                 ).toFixed(3)}{" "}
                 m
               </dd>
-              <dt>{windowSchedule ? "창호 폭 · 높이" : "높이 / 두께"}</dt>
-              <dd>{windowSchedule ? `${windowSchedule.mark} · ${format(windowSchedule.width_m)} × ${format(windowSchedule.height_m)} (도면 대조)` : format(item.height)}</dd>
+        <dt>{doorSchedule ? "출입문 폭 · 높이" : windowSchedule ? "창호 폭 · 높이" : "높이 / 두께"}</dt>
+              <dd>{windowSchedule || doorSchedule ? `${(windowSchedule ?? doorSchedule)!.mark} · ${format((windowSchedule ?? doorSchedule)!.width_m)} × ${format((windowSchedule ?? doorSchedule)!.height_m)} (도면 대조)` : format(item.height)}</dd>
               <dt>모델 평면 면적</dt>
               <dd>
                 {planArea(item).toFixed(2)} m²{" "}
@@ -273,6 +274,15 @@ export default function BimInspector({
                   <dt>도면 적용 위치</dt><dd>{windowSchedule.scope_text}</dd>
                 </dl>
                 <p>평면 부호·층·프레임 폭을 창호도와 대조했습니다. 설계 승인과 BF 통행 확인은 별도입니다.</p>
+              </details>}
+              {doorSchedule && <details className="fact-section" open>
+                <summary>적용 출입문 규격 · {doorSchedule.mark}</summary>
+                <dl className="fact-grid">
+                  <dt>전체 폭 · 높이</dt><dd>{format(doorSchedule.width_m)} · {format(doorSchedule.height_m)}</dd>
+                  <dt>문짝 상단</dt><dd>{format(doorSchedule.leaf_head_m)} · 조립체 상단과 구분</dd>
+                  <dt>도면 적용 위치</dt><dd>{doorSchedule.scope_text}</dd>
+                </dl>
+                <p>원본 문틀·기호·폭을 대조했습니다. 문턱, 유효 통과 폭, 개폐·운용 조건과 설계 승인은 별도 확인이 필요합니다.</p>
               </details>}
               {item.source.section_dimension_link !== undefined && <details open>
                 <summary>계단 단면 치수 대조</summary>

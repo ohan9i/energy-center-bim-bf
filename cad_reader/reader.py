@@ -23,7 +23,8 @@ def _sha256(path: Path) -> str:
 
 
 def analyze_drawing(filename: str | Path, *, oda_path: str | Path | None = None,
-                    max_depth: int = 32, max_scene_entities: int = 500_000) -> dict:
+                    max_depth: int = 32, max_scene_entities: int = 500_000,
+                    precise_identity: bool = False) -> dict:
     """Return JSON-compatible dictionaries. No source save/repair is performed.
 
     DWG conversion is restricted to a temporary copy. Layouts and block definitions
@@ -62,7 +63,7 @@ def analyze_drawing(filename: str | Path, *, oda_path: str | Path | None = None,
     else:
         doc = ezdxf.readfile(source)
     result = extract_document(doc, source=source, max_depth=max_depth,
-                              max_scene_entities=max_scene_entities)
+                              max_scene_entities=max_scene_entities, precise_identity=precise_identity)
     after = _sha256(source)
     result["source"] = {
         "path": str(source), "format": source.suffix[1:].upper(),
@@ -80,7 +81,7 @@ def analyze_drawing(filename: str | Path, *, oda_path: str | Path | None = None,
 
 
 def extract_document(doc, *, source: Path, max_depth: int = 32,
-                     max_scene_entities: int = 500_000) -> dict:
+                     max_scene_entities: int = 500_000, precise_identity: bool = False) -> dict:
     import ezdxf
     from ezdxf import units
     from .geometry import entity_geometry, entity_bounds, json_value
@@ -178,11 +179,17 @@ def extract_document(doc, *, source: Path, max_depth: int = 32,
             return
         identity = identity or root_id
         entry = record(entity, identity, "layout_wcs", inherited_layer, track=False)
-        source_entity = getattr(entity, "source_of_copy", None)
+        source_entity = getattr(entity, "origin_of_copy" if precise_identity else "source_of_copy", None)
         entry.update(root_entity_id=root_id, layout=layout_name,
                      parent_insert_id=ancestry[-1] if ancestry else None,
                      insert_ancestry=list(ancestry),
                      definition_handle=source_entity.dxf.get("handle", None) if source_entity else entry["handle"])
+        if precise_identity:
+            entry['definition_type']=source_entity.dxftype() if source_entity is not None else entry['type']
+            if entry['definition_type']!=entry['type']:
+                warn('TRANSFORM_TYPE_CHANGED','비균일 변환에 의해 원래 객체 형식이 달라졌습니다. 원본 정의 및 핸들을 보존합니다.',
+                     entity_id=identity,definition_handle=entry['definition_handle'],
+                     original_type=entry['definition_type'],transformed_type=entry['type'])
         scene.append(entry)
         scene_by_root[root_id].append(identity)
         if entity.dxftype() != "INSERT":
@@ -219,7 +226,12 @@ def extract_document(doc, *, source: Path, max_depth: int = 32,
                          block_stack, f"{identity}/cell:{index}")
             else:
                 entry["expansion_status"] = "expanded"
-                for index, child in enumerate(entity.virtual_entities(skipped_entity_callback=skipped_callback)):
+                if precise_identity:
+                    from .precise_transform import virtual_entities
+                    children = virtual_entities(entity,skipped_callback)
+                else:
+                    children = entity.virtual_entities(skipped_entity_callback=skipped_callback)
+                for index, child in enumerate(children):
                     walk(child, root_id, layout_name, ancestry + (identity,), entry["effective_layer"],
                          block_stack + (name.casefold(),), f"{identity}/child:{index}")
                 # Attached attributes have already been placed in the containing layout WCS.

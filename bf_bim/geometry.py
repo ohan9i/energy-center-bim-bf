@@ -7,8 +7,15 @@ def opening_footprint(element):
     return unary_union([Polygon(r) for r in rings]) if rings else Polygon(element.polygon,element.holes)
 
 def architectural_footprint(element):
-    profiles=element.source.get('architectural_wall_profiles')
+    profiles=element.source.get('architectural_slab_profiles') if element.type in ('floor','roof') else element.source.get('architectural_space_profiles') if element.type in ('space','corridor') else element.source.get('architectural_wall_profiles')
     return unary_union([Polygon(p[0],p[1:]) for p in profiles]) if profiles is not None else Polygon(element.polygon,element.holes)
+
+def slab_shape(element):
+    """Effective architectural slab coverage, separate from the BF floor mask."""
+    if isinstance(element,dict):
+        profiles=element['source'].get('architectural_slab_profiles')
+        return unary_union([Polygon(p[0],p[1:]) for p in profiles]) if profiles is not None else Polygon(element['polygon'],element.get('holes',[]))
+    return architectural_footprint(element)
 
 def footprint(element, elements):
     poly=Polygon(element.polygon, element.holes)
@@ -38,8 +45,12 @@ def solid_parts(element, elements):
     if element.components:
         return [(Polygon(c.polygon,c.holes),element.z_offset+c.z_offset,c.height) for c in element.components]
     poly=architectural_footprint(element)
+    vertical=element.source.get('architectural_vertical_profiles')
+    if vertical is not None:
+        envelopes=[(Polygon(q['polygon'],q.get('holes',[])),q['z_offset'],q['height']) for q in vertical]
+    else:envelopes=[(p,element.z_offset,element.height) for p in polygon_parts(poly)]
     if element.type!='wall' or element.height is None:
-        return [(p,element.z_offset,element.height) for p in polygon_parts(poly)]
+        return envelopes
     openings=[]
     for e in elements:
         if e.type not in ('door','window') or e.excluded or e.floor_id!=element.floor_id:continue
@@ -51,11 +62,12 @@ def solid_parts(element, elements):
     # Preserve original example geometry; refined CAD models require known opening heights.
     if not openings and not element.source.get('geometry_status'):
         return [(p,element.z_offset,element.height) for p in polygon_parts(footprint(element,elements))]
-    start,end=element.z_offset,element.z_offset+element.height
-    levels=sorted({start,end,*[max(start,min(end,v)) for e,z,h in openings for v in (z,z+h)]})
     result=[]
-    for lo,hi in zip(levels,levels[1:]):
-        cuts=[opening_footprint(e) for e,z,h in openings if z<=lo and z+h>=hi]
-        part=poly.difference(unary_union(cuts)) if cuts else poly
-        result.extend((p,lo,hi-lo) for p in polygon_parts(part) if hi-lo>1e-8)
+    for shape,start,depth in envelopes:
+        end=start+depth
+        levels=sorted({start,end,*[max(start,min(end,v)) for e,z,h in openings for v in (z,z+h)]})
+        for lo,hi in zip(levels,levels[1:]):
+            cuts=[opening_footprint(e) for e,z,h in openings if z<=lo and z+h>=hi]
+            part=shape.difference(unary_union(cuts)) if cuts else shape
+            result.extend((p,lo,hi-lo) for p in polygon_parts(part) if hi-lo>1e-8)
     return result

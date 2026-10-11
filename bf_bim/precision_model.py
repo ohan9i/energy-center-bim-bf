@@ -38,7 +38,7 @@ def ring(poly):
 def component(poly,role,height=None,z=0,**source):
     return dict(role=role,polygon=ring(poly),holes=[],height=height,z_offset=z,source=source)
 
-def stair_components(lines,envelope,riser_evidence):
+def stair_components(lines,envelope,riser_evidence,*,riser_m=.175,risers_per_flight=12,storey_interval_m=4.2):
     """Use the actual parallel nosings, not an arbitrary stair box or step pitch."""
     groups=defaultdict(list)
     for line,src in lines:
@@ -56,28 +56,30 @@ def stair_components(lines,envelope,riser_evidence):
     ts=sorted({round(st(line.coords[0])[1],4) for line,_ in treads})
     pitches=[round(y-x,4) for x,y in zip(ts,ts[1:])]
     if not pitches or max(pitches)-min(pitches)>.01:return [],{}
-    pitch=sum(pitches)/len(pitches);rise=.175
+    pitch=sum(pitches)/len(pitches);rise=riser_m
+    if len(ts)!=risers_per_flight or abs(2*rise*risers_per_flight-storey_interval_m)>.002:
+        return [],{'reason':'Plan nosing count and assigned section rise disagree'}
     # Two flights / 12 risers per flight are supported by core section text.
     # Direction and central separation remain explicit reconstruction assumptions.
     result=[]
     for flight,(left,right) in enumerate(((s0,mid-.05),(mid+.05,s1))):
         for i,(lo,hi) in enumerate(zip(ts,ts[1:])):
-            level=(i+1)*rise if flight==0 else 4.2-(i+1)*rise
+            level=(i+1)*rise if flight==0 else storey_interval_m-(i+1)*rise
             poly=Polygon([pt(left,lo),pt(right,lo),pt(right,hi),pt(left,hi)])
             result.append(component(poly,'tread',rise,level-rise,
                 cad_ids=[src for _,src in treads],geometry_inferred=True,
-                direction_verified=False,height_evidence=riser_evidence))
+                direction_verified=False,height_evidence=riser_evidence,flight_index=flight,step_index=i))
     ext=[st(p)[1] for p in envelope.exterior.coords];tmin,tmax=min(ext),max(ext)
-    for lo,hi,z in ((tmin,ts[0],0),(ts[-1],tmax,2.1)):
+    for lo,hi,z in ((tmin,ts[0],0),(ts[-1],tmax,storey_interval_m/2)):
         if hi-lo>.1:
             right=mid-.05 if z==0 else s1
             result.append(component(Polygon([pt(s0,lo),pt(right,lo),pt(right,hi),pt(s0,hi)]),'landing',None,z,
                 geometry_inferred=True,slab_thickness_source='unknown'))
     if ts[0]-tmin>.1:
         result.append(component(Polygon([pt(mid+.05,tmin),pt(s1,tmin),pt(s1,ts[0]),pt(mid+.05,ts[0])]),
-            'landing',None,4.2,geometry_inferred=True,slab_thickness_source='unknown'))
+            'landing',None,storey_interval_m,geometry_inferred=True,slab_thickness_source='unknown'))
     return result,dict(nosing_count=len(ts),tread_pitch_m=round(pitch,4),riser_m=rise,
-        risers_per_flight=12,riser_evidence=riser_evidence,flight_direction_verified=False,
+        risers_per_flight=risers_per_flight,riser_evidence=riser_evidence,flight_direction_verified=False,
         central_gap_m=.1,central_gap_source='display reconstruction assumption',
         detail_pitch_conflict=abs(pitch-.3)>.005)
 
@@ -177,6 +179,29 @@ def main():
                     method='paired window block faces' if not profiles.is_empty else 'unpaired window profile marker',
                     geometry_inferred=True,height_source='unknown',sill_source='unknown',material='glazing',schedule_match_status='unresolved')
                 if profiles.is_empty:src['marker_width_m']=.01
+                else:
+                    corners=list(p.minimum_rotated_rectangle.exterior.coords)
+                    k=max(range(4),key=lambda i:math.dist(corners[i],corners[i+1]))
+                    w=math.dist(corners[k],corners[k+1]);ux=(corners[k+1][0]-corners[k][0])/w;uy=(corners[k+1][1]-corners[k][1])/w
+                    cx,cy=p.centroid.coords[0];depth=min(math.dist(corners[i],corners[i+1]) for i in range(4))
+                    src['window_plan_axis']=dict(origin=[cx,cy],direction=[ux,uy],width_m=w,depth_m=depth)
+                    offsets={}
+                    for line,lid in win_records:
+                        if not depth*.75<=line.length<=depth*1.5:continue
+                        a,b=line.coords;dot=abs(((b[0]-a[0])*ux+(b[1]-a[1])*uy)/line.length)
+                        mid=line.interpolate(.5,normalized=True)
+                        if dot<.05 and p.buffer(.003).covers(mid):
+                            s=round((mid.x-cx)*ux+(mid.y-cy)*uy,3)
+                            if abs(s)<w/2-.1:offsets.setdefault(s,[]).append(lid)
+                    pending=sorted(offsets);divisions=[]
+                    while pending:
+                        lo=pending.pop(0);hi=lo
+                        if pending and pending[0]-lo<=.15 and set(offsets[lo])&set(offsets[pending[0]]):hi=pending.pop(0)
+                        divisions.append(dict(offset_m=(lo+hi)/2,span_m=[lo,hi] if hi>lo else None,
+                            cad_ids=sorted(set(offsets[lo]+offsets[hi])),method='paired transverse frame faces; same CAD object'))
+                    src['measured_mullion_offsets_m']=[d['offset_m'] for d in divisions]
+                    src['measured_mullion_spans_m']=[d['span_m'] for d in divisions if d['span_m']]
+                    src['mullion_plan_evidence']=divisions
                 add(fid,'window',p,src,f'{n}층 창호 · {name}')
         glazing=[(l,e['id']) for e in use if e['layer'] in GLASS_LAYERS and e['root'] not in window_roots for l in entity_lines(e,offset) if l.length>.5]
         _,gbands,_=paired_wall_faces(glazing)
@@ -327,14 +352,25 @@ def main():
     annotate_columns(elements,drawing_evidence,{e['id']:e for e in es})
     from .architectural_assemblies import refine_assemblies,load_parameters
     parameters=load_parameters()
+    rail_details=[dict(file=d['file'],cad_id=e['id'],text=e['geometry']['text'],member_assignment_verified=False)
+        for d in supplements if d['file'].startswith('A02-037') for e in d['entities']
+        if e['type'] in ('TEXT','MTEXT') and ('38' in e['geometry'].get('text','') or '@900' in e['geometry'].get('text',''))]
+    for e in elements:
+        if e['type']=='stair':e['source']['railing_detail_candidates']=rail_details
     assembly_report=refine_assemblies(elements,parameters)
+    from .architectural_continuity import repair_slabs,finish_continuity
+    slab_continuity=repair_slabs(elements,parameters)
     from .architectural_joints import resolve_joints
     joint_report=resolve_joints(elements,parameters)
+    continuity_report=finish_continuity(elements,parameters)
+    continuity_report['slabs']=slab_continuity
+    assembly_report['assemblies']=dict(Counter(e['type'] for e in elements if e['components']))
+    assembly_report['component_count']=sum(len(e['components']) for e in elements)
     for item in elements+places:
         if item['name'].startswith('0층'):item['name']=item['name'].replace('0층','지하 1층',1)
     basement_evidence=next(t for t in sections['texts'] if t['id']=='layout:Model/8F9D/child:34' and t['text']=='EL +33.80')
     evidence.insert(0,basement_evidence)
-    model=Model.model_validate(dict(id='energy-center-actual-1f2f',name='에너지융복합종합지원센터 · 도면 기반 BIM',revision=2,
+    model=Model.model_validate(dict(id='energy-center-actual-1f2f',name='에너지융복합종합지원센터 · 도면 기반 BIM',revision=4,
         floors=[dict(id='b1',name='지하 1층',elevation=-3.9)]+[dict(id=f'f{i}',name=f'지상 {i}층',elevation=(i-1)*4.2) for i in range(1,5)]+[dict(id='roof',name='지붕 / 옥탑 후보',elevation=16.8)],
         elements=elements,places=places,links=[],warnings=[
             '지하 1층·지상 1~4층과 지붕 평면을 사용했습니다. PIT층·옥탑 상부와 지하층 미폐합 영역의 전체 형상은 아직 복원하지 않았습니다.',
@@ -345,9 +381,9 @@ def main():
             '실 경계는 150 mm까지의 선 간극을 닫은 후보입니다. 여러 실명이 한 경계에 포함되는 구간은 분리 미확정으로 표시합니다.',
             '중정과 계단·승강기 영역을 바닥에서 제외했습니다. 중정은 CAD 끝점 연결 후보이고 슬래브 개구부는 구조 검토 전입니다.',
             '기준층 계단은 실제 단선 간격과 코어 상세의 175×12 높이를 사용합니다. 지하/옥탑 비기준층 계단은 높이 미확인 평면으로 보존합니다. 진행 방향·참·중앙 간격은 후보이며 280/300 mm 불일치가 있습니다.',
-            '지붕 닫힌 외곽이 없으면 4층 외곽을 투영한 후보입니다. 경사지붕·파라펫·태양광·옥탑 상부를 임의로 만들지 않았습니다.',
+            '바닥 단절·창 주변 틈 메움과 지붕 파라펫·옥탑 덮개는 사용자가 요청한 검토용 보정입니다. 원본에 확인된 설계 치수가 아니며 BF 바닥/통행 정보에는 적용하지 않습니다.',
             '계단·승강기 층간 위치 관계는 검토 후보입니다. BF links 및 경로 탐색 알고리즘은 변경하지 않았습니다.'],
-        provenance=dict(modelling_version=3,assembly_parameters=parameters,assembly_report=assembly_report,joint_report=joint_report,floorplan_sha256=inventory['sha256'],section_sha256=sections['source']['sha256_before'],
+        provenance=dict(modelling_version=5,assembly_parameters=parameters,assembly_report=assembly_report,joint_report=joint_report,continuity_report=continuity_report,floorplan_sha256=inventory['sha256'],section_sha256=sections['source']['sha256_before'],
             source_origin_mm=ORIGIN,sheet_spacing_mm=SHEET_SPACING,source_units='mm',coordinate_transform='XY=(CAD-Origin-sheet offset)*0.001; Z=EL-37.70',
             level_evidence=evidence,floor_reports=reports,source_audit=source_audit,drawing_evidence=drawing_evidence,assembly_relationships=relationships,review_status='unverified',
             missing_information=['지하층 미폐합 바닥/PIT 형상 및 옥탑 상부 모델','지붕 외곽과 파라펫 상세','개별 문·창호 높이/창대 및 일람표 매칭',
@@ -357,7 +393,7 @@ def main():
     (OUT/'energy-center-model.json').write_text(model.model_dump_json(indent=2),encoding='utf-8')
     report=dict(model_elements=len(model.elements),types=dict(Counter(e.type for e in model.elements)),floor_reports=reports,
         level_evidence=evidence,source_audit=source_audit,drawing_evidence=drawing_evidence,
-        assembly_parameters=parameters,assembly_report=assembly_report,joint_report=joint_report,
+        assembly_parameters=parameters,assembly_report=assembly_report,joint_report=joint_report,continuity_report=continuity_report,
         review_status='unverified; provisional assembly dimensions included',missing_information=model.provenance['missing_information'])
     (OUT/'energy-center-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(dict(model_elements=len(model.elements),types=report['types'],places=len(places),

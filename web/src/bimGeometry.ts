@@ -9,7 +9,7 @@ export function renderPieces(e:Element,m:Model,assumptions=false,openingFraction
  if(assumptions&&['space','corridor'].includes(e.type)&&Array.isArray(e.source.architectural_space_profiles))return (e.source.architectural_space_profiles as Poly[]).map(poly=>({poly,z:e.z_offset,height:null,assumed:true}));
  if(e.components.length)return e.components.map(c=>{
   const assumed=c.source.geometry_status==='provisional'||c.source.geometry_status==='drawing_correlated'&&c.source.dimension_verified!==true;
-  return {poly:c.role==='door_leaf'&&openingFraction?rotateDoor([c.polygon,...c.holes],e,openingFraction):[c.polygon,...c.holes],z:e.z_offset+c.z_offset,
+  return {poly:c.role==='door_leaf'&&openingFraction?rotateDoor([c.polygon,...c.holes],e,openingFraction,c.source.hinge?c.source:e.source):[c.polygon,...c.holes],z:e.z_offset+c.z_offset,
    height:!assumptions&&assumed?null:c.height,role:c.role,assumed,
    material:String(c.source.material??e.source.material??'unknown'),mesh:!assumptions&&assumed?null:c.mesh,componentId:c.id};
  });
@@ -42,8 +42,8 @@ export function renderPieces(e:Element,m:Model,assumptions=false,openingFraction
   return polys.map(poly=>({poly,z:lo,height:hi-lo,assumed:envelope.assumed||cuts.some(d=>d.assumed)}));
  });});
 }
-export function rotateDoor(poly:Poly,e:Element,fraction:number):Poly{
- const a=e.source.hinge as XY|undefined,b=e.source.leaf_end as XY|undefined,c=e.source.swing_end as XY|undefined;
+export function rotateDoor(poly:Poly,e:Element,fraction:number,source:Element['source']=e.source):Poly{
+ const a=source.hinge as XY|undefined,b=source.leaf_end as XY|undefined,c=source.swing_end as XY|undefined;
  if(!a||!b||!c)return poly;
  const angle=Math.atan2((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]),(b[0]-a[0])*(c[0]-a[0])+(b[1]-a[1])*(c[1]-a[1]))*Math.max(0,Math.min(1,fraction));
  const cos=Math.cos(angle),sin=Math.sin(angle);

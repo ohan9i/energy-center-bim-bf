@@ -112,7 +112,10 @@ def entity_geometry(entity) -> tuple[dict, str]:
         return {"control_points": json_value(entity.control_points),
                 "fit_points": json_value(entity.fit_points), "knots": json_value(entity.knots),
                 "weights": json_value(entity.weights), "degree": d.degree,
-                "flags": d.flags}, "full"
+                "flags": d.flags,
+                "start_tangent": point(d.start_tangent) if d.hasattr('start_tangent') else None,
+                "end_tangent": point(d.end_tangent) if d.hasattr('end_tangent') else None,
+                "tolerances": {k:d.get(k,None) for k in ('knot_tolerance','control_point_tolerance','fit_tolerance')}}, "full"
     if kind == "HATCH":
         paths = []
         for path in entity.paths:
@@ -124,8 +127,17 @@ def entity_geometry(entity) -> tuple[dict, str]:
                 item["edges"] = [{"type": type(edge).__name__,
                                   "data": json_value(vars(edge))} for edge in path.edges]
             paths.append(item)
+        # Boundary coordinates are OCS, including when a hatch is inside a
+        # rotated block. Keep elevation/normal so consumers cannot mistake
+        # these coordinates for WCS. Pattern strokes remain unexpanded.
         return {"boundary_paths_ocs": paths, "solid_fill": bool(d.solid_fill),
-                "pattern_name": d.pattern_name}, "partial"
+                "pattern_name": d.pattern_name,
+                "elevation_ocs": point(d.elevation),
+                "normal": point(d.get('extrusion', (0, 0, 1))),
+                "hatch_style": d.hatch_style,
+                "boundary_coordinate_system": "ocs",
+                "boundary_support": "native_paths_preserved",
+                "pattern_support": "not_expanded"}, "partial"
     return {}, "unsupported"
 
 

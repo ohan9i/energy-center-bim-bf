@@ -18,7 +18,7 @@ export const spatialSchema=z.object({version:z.literal('bf-spatial/1'),model_id:
    review:review.optional(),evidence:z.array(z.string()).optional()}).strict()).max(10000),
  portals:z.array(z.object({id:z.string(),element_id:z.string().nullable(),floor_id:z.string(),kind:z.enum(['door','open_passage']),
    host_wall_ids:z.array(z.string()),space_ids:z.array(z.string()).max(2),points:z.tuple([point,point]),region,properties:conditions,
-   source_geometry:z.object({hinge:point.nullable(),leaf_end:point.nullable(),swing_end:point.nullable(),measured_leaf_span_m:n.nullable(),cad_ids:z.array(z.string())}).strict().optional(),...approval}).strict()).max(1000),
+   source_geometry:z.object({hinge:point.nullable(),leaf_end:point.nullable(),swing_end:point.nullable(),measured_leaf_span_m:n.nullable(),native_opening_width_m:n.positive().nullable().optional(),cad_ids:z.array(z.string())}).strict().optional(),...approval}).strict()).max(1000),
  vertical:z.array(z.object({id:z.string(),kind:z.enum(['elevator','stair','ramp']),element_ids:z.tuple([z.string(),z.string()]),
    space_ids:z.array(z.string()).max(2),points:z.tuple([point,point]),distance:n.positive(),
    properties:conditions.extend({slope:n.nonnegative().nullable()}),...approval}).strict()).max(500)
