@@ -5,7 +5,20 @@ export const pointSchema = z.tuple([num,num]);
 const ring = z.array(pointSchema).min(3).max(2000);
 export const kinds = ['wall','column','beam','floor','roof','window','opening','space','corridor','door','stair','ramp','elevator','obstacle','unclassified'] as const;
 export const labels: Record<string,string> = {wall:'벽체',column:'기둥',beam:'보',floor:'바닥 / 슬래브',roof:'지붕',window:'창호',opening:'개구부',space:'실',corridor:'복도 / 홀',door:'출입문',stair:'계단',ramp:'경사로',elevator:'승강기',obstacle:'장애물',unclassified:'미분류'};
-export const componentSchema=z.object({role:z.string(),polygon:ring,holes:z.array(ring).default([]),height:num.positive().max(100).nullable().default(null),z_offset:num.default(0),source:z.record(z.string(),z.unknown()).default({})}).strict();
+const solidMeshSchema=z.object({vertices:z.array(z.tuple([num,num,num])).min(4).max(10000),triangles:z.array(z.tuple([num.int().min(0),num.int().min(0),num.int().min(0)])).min(4).max(20000)}).strict().superRefine((mesh,ctx)=>{
+ const edges=new Map<string,number>();let volume=0;
+ for(const [a,b,c] of mesh.triangles){
+  if(Math.max(a,b,c)>=mesh.vertices.length||new Set([a,b,c]).size!==3){ctx.addIssue({code:'custom',message:'잘못된 솔리드 정점 참조'});return;}
+  for(const [i,j] of [[a,b],[b,c],[c,a]])edges.set(i+':'+j,(edges.get(i+':'+j)??0)+1);
+  const [u,v,w]=[a,b,c].map(i=>mesh.vertices[i]);
+  volume+=u.reduce((n,x,i)=>n+x*(v[(i+1)%3]*w[(i+2)%3]-v[(i+2)%3]*w[(i+1)%3]),0)/6;
+ }
+ if(volume<=1e-10||[...edges].some(([key,n])=>{const [i,j]=key.split(':');return n!==1||edges.get(j+':'+i)!==1;}))ctx.addIssue({code:'custom',message:'닫힌 솔리드와 일관된 면 방향이 필요합니다.'});
+});
+export type SolidMesh=z.infer<typeof solidMeshSchema>;
+export const componentSchema=z.object({id:z.string().default(''),role:z.string(),polygon:ring,holes:z.array(ring).default([]),height:num.positive().max(100).nullable().default(null),z_offset:num.default(0),source:z.record(z.string(),z.unknown()).default({}),mesh:solidMeshSchema.nullable().default(null)}).strict().superRefine((c,ctx)=>{
+ if(c.mesh){const zs=c.mesh.vertices.map(v=>v[2]);if(c.height===null||Math.abs(Math.min(...zs))>1e-7||Math.abs(Math.max(...zs)-c.height)>1e-7)ctx.addIssue({code:'custom',message:'솔리드 정점 Z와 구성요소 높이가 다릅니다.'});}
+});
 export const elementSchema = z.object({id:z.string().min(1).max(160),name:z.string(),type:z.enum(kinds),floor_id:z.string(),polygon:ring,holes:z.array(ring).default([]),height:num.positive().max(100).nullable().default(null),z_offset:num.default(0),verified:z.boolean().default(false),excluded:z.boolean().default(false),properties:z.object({clear_width:num.positive().max(100).nullable().default(null),step:num.min(0).max(100).nullable().default(null),slope:num.min(0).max(10).nullable().default(null),operational:z.boolean().nullable().default(null)}).strict().default({clear_width:null,step:null,slope:null,operational:null}),source:z.record(z.string(),z.unknown()).default({}),components:z.array(componentSchema).max(500).default([])}).strict();
 export const modelSchema=z.object({schema_version:z.literal('1.0'),id:z.string(),name:z.string(),units:z.literal('m'),is_example:z.boolean().default(false),revision:num.int().min(0).default(0),floors:z.array(z.object({id:z.string(),name:z.string(),elevation:num}).strict()).min(1).max(30),elements:z.array(elementSchema).max(10000),places:z.array(z.object({id:z.string(),name:z.string(),floor_id:z.string(),point:pointSchema}).strict()).max(500),links:z.array(z.object({id:z.string(),element_id:z.string(),from_place:z.string(),to_place:z.string(),distance:num.positive().max(1000)}).strict()).max(500),warnings:z.array(z.string()).default([]),provenance:z.record(z.string(),z.unknown()).default({})}).strict();
 export type Model=z.infer<typeof modelSchema>;
@@ -17,6 +30,8 @@ export interface Rules {id:string;name:string;verification_status:string;effecti
 export function parseModel(input:unknown):Model {
   const m=modelSchema.parse(input);
   for(const arr of [m.floors,m.elements,m.places,m.links]) if(new Set(arr.map(x=>x.id)).size!==arr.length) throw Error('중복 ID가 있습니다.');
+  const componentIds=m.elements.flatMap(e=>e.components.map(c=>c.id).filter(Boolean));
+  if(new Set(componentIds).size!==componentIds.length||componentIds.some(id=>m.elements.some(e=>e.id===id)))throw Error('조립체 구성요소 ID가 중복됩니다.');
   const floors=new Set(m.floors.map(x=>x.id)), places=new Map(m.places.map(x=>[x.id,x])), elements=new Map(m.elements.map(x=>[x.id,x]));
   if([...m.elements,...m.places].some(x=>!floors.has(x.floor_id))) throw Error('층 참조가 잘못되었습니다.');
   for(const l of m.links){ const a=places.get(l.from_place),b=places.get(l.to_place),e=elements.get(l.element_id); if(!a||!b||!e||!['stair','ramp','elevator'].includes(e.type)||a.floor_id===b.floor_id||a.floor_id!==e.floor_id)throw Error('층간 연결 참조가 잘못되었습니다.'); if(!inside(a.point,raw(e))||!inside(b.point,raw(e)))throw Error('층간 연결 지점은 시설 평면 영역 안에 있어야 합니다.'); const dz=m.floors.find(f=>f.id===a.floor_id)!.elevation-m.floors.find(f=>f.id===b.floor_id)!.elevation;if(l.distance+1e-8<Math.hypot(dist(a.point,b.point),dz))throw Error('층간 이동 길이가 두 지점 사이 직선거리보다 짧습니다.'); }

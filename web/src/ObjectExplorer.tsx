@@ -6,8 +6,30 @@ import {
   Layers,
   Search,
   TriangleAlert,
+  BrickWall,
+  Columns3,
+  DoorOpen,
+  PanelsTopLeft,
+  Footprints,
+  ArrowUpFromLine,
+  Square,
+  Waypoints,
+  Building2,
 } from "lucide-react";
 import { kinds, labels, type Model, type Element } from "./model";
+
+const elementIcons: Record<string, typeof Box> = {
+  wall: BrickWall,
+  column: Columns3,
+  door: DoorOpen,
+  window: PanelsTopLeft,
+  floor: Layers,
+  roof: Building2,
+  stair: ArrowUpFromLine,
+  space: Square,
+  corridor: Footprints,
+  ramp: Waypoints,
+};
 
 interface Props {
   model: Model;
@@ -79,6 +101,7 @@ export default function ObjectExplorer({
                   <span>{group.length}</span>
                 </summary>
                 {kinds.map((k) => {
+                  const KindIcon = elementIcons[k] || Box;
                   const objects = group.filter((e) => e.type === k),
                     key = f.id + ":" + k,
                     limit = limits[key] ?? 100;
@@ -95,7 +118,7 @@ export default function ObjectExplorer({
                         }
                       >
                         <summary>
-                          <Box size={14} />
+                          <KindIcon size={14} />
                           {labels[k]}
                           <span>{objects.length}</span>
                         </summary>
