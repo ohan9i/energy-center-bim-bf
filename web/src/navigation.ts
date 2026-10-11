@@ -1,12 +1,16 @@
 import {dist,bounds,floorRegion,footprints,raw,contained,touches,type Multi} from './geometry';
 import {evaluate,type Evaluation} from './evaluation';
 import {profileSchema,type Model,type Profile,type XY} from './model';
+import {findSpatialRoute,buildSpatialNetwork} from './spatialRoute';
+import type {Spatial} from './spatial';
 type Node={floor:string;point:XY;place?:string};
 type Edge={to:number;distance:number;cost:number;link?:string};
 export interface RoutePoint {floor:string;point:XY;via?:string}
 export interface RouteResult {status:'found'|'no_path';points:RoutePoint[];distance:number;seconds:number;floors:string[];uses_elevator:boolean;excluded:Evaluation[];instructions:string[];assumptions:string;revision:number;node_count:number}
 export interface FloorCheck {region:Multi;obstacles:Multi;gates:{polygon:ReturnType<typeof raw>;status:string}[];clear:(a:XY,b:XY)=>boolean}
 export function floorCheck(m:Model,floor:string,p:Profile):FloorCheck {
+ if(m.provenance.bf_spatial)return buildSpatialNetwork(m,m.provenance.bf_spatial as Spatial,p).checks.get(floor)!;
+ if(m.provenance.precision_rebuild)return {region:[],obstacles:[],gates:[],clear:()=>false};
  const es=m.elements.filter(e=>e.floor_id===floor&&!e.excluded), region=floorRegion(m,floor);
  const doors=es.filter(e=>e.type==='door');
  const obstacles=es.filter(e=>['wall','column','obstacle','unclassified'].includes(e.type)).flatMap(e=>footprints(e,m));
@@ -31,6 +35,8 @@ class Heap {
  pop(){const a=this.data,top=a[0],last=a.pop()!;if(a.length){let i=0;while(i*2+1<a.length){let j=i*2+1;if(j+1<a.length&&a[j+1].f<a[j].f)j++;if(a[j].f>=last.f)break;a[i]=a[j];i=j;}a[i]=last;}return top;}
 }
 export function findRoute(m:Model,startId:string,endId:string,p:Profile,grid=.25):RouteResult {
+ if(m.provenance.bf_spatial)return findSpatialRoute(m,startId,endId,p,grid);
+ if(m.provenance.precision_rebuild)return findSpatialRoute(m,startId,endId,p,grid);
  profileSchema.parse(p);
  if(grid<.1||grid>1)throw Error('격자 간격은 0.1~1 m 범위여야 합니다.');
  const start=m.places.find(x=>x.id===startId),end=m.places.find(x=>x.id===endId);

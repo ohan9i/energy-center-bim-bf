@@ -8,6 +8,8 @@ import type { RouteResult } from "./navigation";
 import { renderPieces, floorOffset, createRenderContext } from "./bimGeometry";
 import { pieceGeometry, sectionCap, wallEdges } from "./architecturalGeometry";
 import { interiorView } from "./interiorView";
+import {spatialData,approved,physicalBlockers,difference,modelFingerprint} from './spatial';
+import {buildSpatialNetwork} from './spatialRoute';
 import {
   batchElementMeshes,
   batchEdges,
@@ -63,6 +65,7 @@ export default function Viewer({
   plan,
   selected,
   route,
+  profile,
   onSelect,
 }: Props) {
   const host = useRef<HTMLDivElement>(null),
@@ -97,6 +100,7 @@ export default function Viewer({
   const [pickedPart, setPickedPart] = useState("");
   const [evidenceMode, setEvidenceMode] = useState("full");
   const [showGround, setShowGround] = useState(true);
+  const [spatialMode,setSpatialMode] = useState(false);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   useEffect(() => setHiddenIds([]), [model.id]);
   useEffect(() => setShowMarkers(Boolean(model.provenance.precision_rebuild)), [model.id]);
@@ -645,6 +649,32 @@ export default function Viewer({
         sprite.scale.set(4.2, 0.788, 1);
         scene.add(sprite);
       }
+    let spatialPolygons=0;
+    if(spatialMode){
+      try {
+        const data=spatialData(model);
+        if(data){
+          const obstacles=physicalBlockers(model,data);
+          const token=modelFingerprint(model);
+          let network:ReturnType<typeof buildSpatialNetwork>|null=null;
+          try{network=buildSpatialNetwork(model,data,profile);}catch{}
+          const overlay=(regions:XY[][][],fid:string,color:number)=>{
+            if(floor!=="all"&&fid!==floor)return;
+            const z=model.floors.find(f=>f.id===fid)!.elevation+floorOffset(model,fid,separation)+.07;
+            for(const poly of regions){
+              const mesh=new T.Mesh(pieceGeometry({poly,z:0,height:null},true),new T.MeshBasicMaterial({color,transparent:true,opacity:.55,side:T.DoubleSide,depthTest:false,depthWrite:false}));
+              mesh.position.y=z;mesh.renderOrder=12;scene.add(mesh);spatialPolygons++;
+            }
+          };
+          for(const s of data.spaces){const pass=approved(s,token)&&s.step!==null&&s.step<=profile.max_step&&s.slope!==null&&s.slope<=profile.max_slope;
+            overlay(pass?difference(s.region,network?.checks.get(s.floor_id)?.obstacles??obstacles.filter(b=>b.floor_id===s.floor_id).flatMap(b=>b.region)):s.region,s.floor_id,pass?0x10b981:0xf59e0b);}
+          if(network)for(const [fid,check] of network.checks)overlay(check.obstacles,fid,0xef4444);
+          else for(const b of obstacles)overlay(b.region,b.floor_id,0xef4444);
+          for(const g of data.portals)overlay(g.region,g.floor_id,approved(g,token)?0x0284c7:0xf59e0b);
+        }
+      }catch{/* Invalid spatial ledgers cannot authorize a route. The review panel reports the error. */}
+    }
+    renderer.domElement.dataset.spatialPolygons=String(spatialPolygons);
     let routeSegments = 0;
     if (route?.status === "found")
       for (let i = 1; i < route.points.length; i++) {
@@ -932,6 +962,8 @@ export default function Viewer({
     viewDirection,
     showGround,
     hiddenIds,
+    spatialMode,
+    profile,
   ]);
   useEffect(() => {
     for (const mesh of meshesRef.current) {
@@ -1004,6 +1036,7 @@ export default function Viewer({
           </button>
         </div>
         <div className="advanced-tools">
+          <button aria-label="BF 공간 표시" aria-pressed={spatialMode} onClick={()=>setSpatialMode(v=>!v)}>BF 공간 표시</button>
           <button
             aria-label="선택 객체 숨기기"
             title="선택 객체 숨기기"

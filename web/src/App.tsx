@@ -29,7 +29,8 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import Viewer from "./Viewer";
-import PrecisionReview from "./PrecisionReview";
+import SpatialReview from "./SpatialReview";
+import {restoreSpatial} from "./spatial";
 import BimInspector from "./BimInspector";
 import ObjectExplorer from "./ObjectExplorer";
 import { isRetiredModel, loadModelRecords, saveModelRecord } from "./modelStorage";
@@ -83,7 +84,7 @@ function checkedModel(data: unknown) {
   return m;
 }
 export default function App() {
-  const [precisionOpen, setPrecisionOpen] = useState(false);
+  const [spatialOpen, setSpatialOpen] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [model, setModel] = useState<Model | null>(null),
     [library, setLibrary] = useState<Model[]>([]),
@@ -211,6 +212,7 @@ export default function App() {
     setBusy(false);
   }
   function activate(m: Model) {
+    m = restoreSpatial(m);
     worker.current?.terminate();
     epoch.current++;
     setBusy(false);
@@ -586,8 +588,7 @@ export default function App() {
           </span>
         </div>
         <div className="header-actions">
-          {editing && <button className="icon-button" aria-label="정밀 1층 검토" onClick={() => setPrecisionOpen(true)}>정밀 1층</button>}
-          {precisionOpen && <PrecisionReview onClose={() => setPrecisionOpen(false)} />}
+          {spatialOpen && <SpatialReview model={model} profile={profile} floor={floor} editing={editing} onApply={update} onClose={() => setSpatialOpen(false)} />}
           <span className="model-state">
             <i />
             {model.is_example ? "예제 모델" : "도면 기반 모델"}
@@ -1104,6 +1105,7 @@ export default function App() {
               </span>
             </div>
             <div className="view-buttons">
+              <button onClick={() => setSpatialOpen(true)}>공간 경계 검증</button>
               <button
                 aria-pressed={!plan}
                 className={!plan ? "active" : ""}
