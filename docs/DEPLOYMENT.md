@@ -31,6 +31,7 @@ GitHub Pages는 정적 홈페이지이므로 Python·ODA를 사용하는 DWG 업
 
 ```powershell
 .\.venv-cad\Scripts\python.exe -m bf_bim.precise.rebuild --coordination --sync-web
+.\.venv-cad\Scripts\python.exe -m bf_bim.spatial_navigation --sync-web
 git diff --stat -- web/public/models
 git add web/public/models/precision-rebuild.json web/public/models/precision-rebuild-verified.ifc web/public/models/precision-rebuild-coordination-draft.ifc
 git commit -m "Update published coordination model"

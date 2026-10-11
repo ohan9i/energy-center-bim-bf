@@ -108,3 +108,7 @@ npm.cmd --prefix web test
 측정 결과는 `cad_output/precision-rebuild/coordination-v2/whole-building-quality.json`, 벽 복구는 `wall-recovery-validation.json`, 공간 미분류는 `space-coverage.json`에 보존한다.
 
 공개 사이트에는 최신 모델만 반영한다. 원본 DWG·추출 캐시·감사 입력은 보존하며, 비교를 위해 이전 모델을 사이트에 복원하지 않는다.
+
+## 공개 배포 확인
+
+모델·관련 생성 코드 커밋 `b39c661`을 main에 반영했고, [Pages 배포 실행 38167204971](https://github.com/ohan9i/energy-center-bim-bf/actions/runs/38167204971)이 성공했다. [공개 사이트](https://ohan9i.github.io/energy-center-bim-bf/)에서 revision 7 / modelling_version 10, 요소 2,284개·구성요소 4,761개를 확인했다. 공개 JSON과 두 IFC의 다운로드 바이트가 해당 Git 커밋의 파일과 모두 일치했다. 공개 Chrome/WebGL에서도 복구 벽체 2개와 SSD-3 닫힘·열림 2개 화면을 다시 검사해 실행·HTTP 오류 0건을 확인했다. 기록은 `whole-building-deployment.json`과 `browser-current/wall-results.json`, `door-results.json`이다. 배포 성공은 미확정 형상이나 실제 BF 경로의 검증 완료를 뜻하지 않는다.
