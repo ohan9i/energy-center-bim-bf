@@ -15,6 +15,8 @@ interface Props {
 }
 const format = (v: unknown) =>
   typeof v === "number" ? v.toFixed(3) + " m" : "미확인";
+const evidenceLabels: Record<string,string> = {identity:"부재 부호",position:"평면 위치",profile:"평면 윤곽",base:"하단 레벨",top:"상단 높이",material:"재료",scope:"적용 층",revision:"도면 개정",member_mark:"창호 부호"};
+const evidenceStates: Record<string,string> = {verified:"검증 완료",drawing_based:"도면에서 측정",candidate:"연결 후보 · 확인 필요",provisional:"시각화 가정",unresolved:"미확정"};
 export default function BimInspector({
   model,
   library,
@@ -207,7 +209,7 @@ export default function BimInspector({
                     <dt>미확정 정보</dt>
                     <dd>{Array.isArray(item.source.unknowns) ? (item.source.unknowns as string[]).join(", ") : "부재 상세 확인 필요"}</dd>
                     <dt>검증 입체 여부</dt>
-                    <dd>{model.provenance.coordination_draft ? "미확정 · Draft IFC 포함 / Verified IFC 제외" : "미확정 · IFC 입체에서 제외"}</dd>
+                    <dd>{(item.source.verification as {eligible?:boolean}|undefined)?.eligible ? "도면 근거 검증 · Verified IFC 포함" : model.provenance.coordination_draft ? "미확정 · Draft IFC 포함 / Verified IFC 제외" : "미확정 · IFC 입체에서 제외"}</dd>
                   </>
                 )}
               </dl>
@@ -215,11 +217,32 @@ export default function BimInspector({
             {item.source.validation_status !== undefined && <details className="fact-section" open>
               <summary>검증 상태 · 적용 가정</summary>
               <dl className="bim-facts">
-                <dt>부재 상태</dt><dd>{String(item.source.validation_status)}</dd>
+                <dt>부재 상태</dt><dd>{evidenceStates[String(item.source.validation_status)] ?? String(item.source.validation_status)}</dd>
                 {Object.entries((item.source.property_status ?? {}) as Record<string,string>).map(([key,value])=>
                   <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}
               </dl>
               <p>재료 색상은 미확정 분류의 시각화이며 설계 마감 확정값이 아닙니다.</p>
+              {item.source.property_evidence !== undefined && <details open>
+                <summary>속성별 도면 근거</summary>
+                <table><thead><tr><th>속성</th><th>확인 상태 · 값</th><th>근거</th></tr></thead><tbody>
+                  {Object.entries(item.source.property_evidence as Record<string,{status:string;value_m?:number;value?:string;references?:unknown[]}>).map(([field,record])=>
+                    <tr key={field}><td>{evidenceLabels[field] ?? field}</td><td>{evidenceStates[record.status] ?? record.status}{record.value_m!==undefined && ` · ${format(record.value_m)}`}{record.value && ` · ${record.value}`}</td><td>{record.references?.length ?? 0}건</td></tr>)}
+                </tbody></table>
+                <details><summary>도면 객체와 검토 기록</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.property_evidence,null,2)}</pre></details>
+              </details>}
+              {item.source.plan_schedule_links !== undefined && <details open>
+                <summary>창호도 부호 연결 후보</summary>
+                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.plan_schedule_links,null,2)}</pre>
+              </details>}
+              {item.source.section_dimension_link !== undefined && <details open>
+                <summary>계단 단면 치수 대조</summary>
+                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.section_dimension_link,null,2)}</pre>
+              </details>}
+              {item.source.verification !== undefined && <details>
+                <summary>검증 조건 · 남은 항목</summary>
+                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.verification,null,2)}</pre>
+              </details>}
+              {item.source.candidate_classification !== undefined && <p>벽 후보 판정: {String(item.source.candidate_classification)} · {String(item.source.classification_reason)}</p>}
               <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.assumptions ?? {}, null, 2)}</pre>
               <details><summary>구성요소별 적용 치수</summary>
                 <pre style={{whiteSpace:"pre-wrap",fontSize:12}}>{JSON.stringify(item.source.applied_dimensions ?? {},null,2)}</pre>

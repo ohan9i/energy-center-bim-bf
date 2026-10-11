@@ -9,16 +9,16 @@ beforeEach(()=>{
 });
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
 describe('BIM model persistence',()=>{
- it('removes retired built-in models from legacy keys and IndexedDB without reviving their backups',async()=>{
+ it.each(['demo-two-storey','energy-center-actual-1f2f','energy-center-coordination-baseline'])('removes retired %s records without reviving their backups',async(id)=>{
   const db=await new Promise<IDBDatabase>((resolve,reject)=>{const req=indexedDB.open('space-link-bim',1);req.onupgradeneeded=()=>req.result.createObjectStore('models');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
-  await new Promise<void>((resolve,reject)=>{const tx=db.transaction('models','readwrite');tx.objectStore('models').put(JSON.stringify({id:'demo-two-storey'}),'current');tx.objectStore('models').put(JSON.stringify({id:'energy-center-actual-1f2f-saved'}),'previous');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});
-  legacy.set('space-link-model',JSON.stringify({id:'demo-two-storey-previous-0'}));
-  legacy.set('space-link-model-previous',JSON.stringify({id:'energy-center-actual-1f2f'}));
+  await new Promise<void>((resolve,reject)=>{const tx=db.transaction('models','readwrite');tx.objectStore('models').put(JSON.stringify({id}),'current');tx.objectStore('models').put(JSON.stringify({id:id+'-saved'}),'previous');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});
+  legacy.set('space-link-model',JSON.stringify({id:id+'-previous-0'}));
+  legacy.set('space-link-model-previous',JSON.stringify({id}));
   expect(await loadModelRecords()).toEqual({current:null,previous:[]});
   expect(legacy.size).toBe(0);
   for(const key of ['current','previous'])expect(await new Promise(resolve=>{const req=db.transaction('models','readonly').objectStore('models').get(key);req.onsuccess=()=>resolve(req.result);})).toBeUndefined();
   db.close();
-  await expect(saveModelRecord(JSON.stringify({id:'demo-two-storey'}))).rejects.toThrow('삭제된 기본 모델');
+  await expect(saveModelRecord(JSON.stringify({id}))).rejects.toThrow('삭제된 기본 모델');
  });
  it('keeps the latest model and unrelated saved models while removing a retired local backup',async()=>{
   const payload=JSON.stringify({id:'energy-center-precision-rebuild'});

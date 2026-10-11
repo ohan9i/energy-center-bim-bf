@@ -174,7 +174,7 @@ export default function Viewer({
       (e) =>
         !e.excluded &&
         (!e.source.unresolved_plan_only || evidenceMode === "drawing") &&
-        (evidenceMode !== "verified" || e.source.validation_status === "verified") &&
+        (evidenceMode !== "verified" || (e.source.validation_status === "verified" && (e.source.verification as {eligible?:boolean}|undefined)?.eligible === true)) &&
         (evidenceMode !== "drawing" || e.source.geometry_status === "measured_plan" || Boolean(e.source.precision_member_id)) &&
         !hiddenIds.includes(e.id) &&
         (floor === "all" || e.floor_id === floor) &&
@@ -445,8 +445,8 @@ export default function Viewer({
               "depth_reveal",
             ].includes(piece.role),
         );
-        const color = evidenceMode === "highlight" && (piece.assumed || e.source.validation_status === "provisional")
-          ? 0xeaa335 : marker
+        const color = evidenceMode === "highlight"
+          ? e.source.validation_status === "verified" ? 0x36aa80 : e.source.validation_status === "unresolved" ? 0xcd6666 : 0xeaa335 : marker
           ? 0xd29c47
           : metal
             ? 0x485e69
@@ -1291,13 +1291,14 @@ export default function Viewer({
         <details className="viewer-caution">
           <summary>
             <TriangleAlert size={14} />
-            {model.provenance.coordination_draft ? "통합 3D Coordination Draft · 검증 입체 0개" : model.provenance.precision_rebuild ? "도면 평면 + 미확정 3D · 검증 입체 0개" : "임시 치수 포함 · 도면 검토 필요"}
+            {model.provenance.coordination_draft ? `통합 3D Coordination Draft · 검증 입체 ${Number(model.provenance.verified_solids ?? 0)}개` : model.provenance.precision_rebuild ? `도면 평면 + 미확정 3D · 검증 입체 ${Number(model.provenance.verified_solids ?? 0)}개` : "임시 치수 포함 · 도면 검토 필요"}
           </summary>
           <p>
             {model.provenance.coordination_draft ? "CAD 위치와 검토용 입체 조립체를 표시합니다. 높이·두께·재료 가정은 객체 속성에 기록됩니다. Draft IFC와 Verified IFC를 구분해 저장하세요." : model.provenance.precision_rebuild
               ? "원본 평면 경계와 미확정 층간 외피를 표시합니다. 1 mm 벽면 표시는 실제 벽 두께가 아닙니다. 검증된 입체는 0개이며, 미확정 외피는 IFC에서 제외됩니다."
               : "슬래브·마감·참·문틀·창틀·샤프트는 검토 후보입니다. JSON/IFC에도 미확정 근거를 보존합니다. 선택 객체에서 치수와 근거를 확인하세요."}
           </p>
+          {evidenceMode === "highlight" && <p>초록: 근거 검증 완료 · 주황: 임시 치수 또는 미배정 · 빨강: 미해결. 도면 기반 형상 모드에서는 입체로 만들지 못한 원본 후보도 확인할 수 있습니다.</p>}
         </details>
       )}
       {walking && (

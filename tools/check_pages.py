@@ -27,6 +27,7 @@ def main():
     assert not any(p.suffix.lower()=='.dwg' or p.name.startswith('energy-center') for p in dist.rglob('*')), 'Private drawing output found in static build.'
     assert not (dist/'models'/'demo.json').exists(), 'Retired example model found in static build.'
     assert not (dist/'models'/'project.json').exists(), 'Retired BIM model found in static build.'
+    assert sorted(p.name for p in (dist/'models').iterdir()) == ['precision-rebuild-coordination-draft.ifc','precision-rebuild-verified.ifc','precision-rebuild.json'], 'Unexpected or retired public model asset'
     with tempfile.TemporaryDirectory(prefix='bf-pages-check-') as temp:
         shutil.copytree(dist,Path(temp)/base.strip('/'))
         server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(QuietHandler,directory=temp))
@@ -43,7 +44,8 @@ def main():
             content=get(base+'models/precision-rebuild.json').decode('utf-8')
             coordination=json.loads(content)
             assert coordination['provenance']['coordination_draft'] is True
-            assert coordination['provenance']['verified_solids']==0
+            assert 'comparison_baseline' not in coordination['provenance']
+            assert coordination['provenance']['verified_solids']==sum(e['source'].get('verification',{}).get('eligible') is True for e in coordination['elements'])
             assert not any(e['verified'] for e in coordination['elements'])
             assert not re.search(r'[A-Z]:[\\/]',content), 'Local path found in published model'
             for name in ('precision-rebuild-verified.ifc','precision-rebuild-coordination-draft.ifc'):

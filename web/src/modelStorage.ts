@@ -1,7 +1,7 @@
 // Large BIM models exceed localStorage quotas once an earlier model is retained.
-// Keep legacy keys intact and store new revisions atomically in IndexedDB.
+// Store user revisions atomically; remove retired built-in records on load.
 const legacyCurrent='space-link-model',legacyPrevious='space-link-model-previous';
-const retiredIds=['demo-two-storey','energy-center-actual-1f2f'];
+const retiredIds=['demo-two-storey','energy-center-actual-1f2f','energy-center-coordination-baseline'];
 export function isRetiredModel(model:{id:string}){
  return retiredIds.some(id=>model.id===id||model.id.startsWith(id+'-'));
 }

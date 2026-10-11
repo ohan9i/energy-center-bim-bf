@@ -6,7 +6,7 @@ import {findRoute} from '../src/navigation';
 
 const input=readFileSync(new URL('../public/models/precision-rebuild.json',import.meta.url),'utf8');
 describe('published coordination model',()=>{
- it('ships only the current model and its two IFC exports',()=>{
+ it('ships only the current model and its IFC exports',()=>{
   expect(readdirSync(new URL('../public/models/',import.meta.url)).sort()).toEqual([
    'precision-rebuild-coordination-draft.ifc','precision-rebuild-verified.ifc','precision-rebuild.json',
   ]);
@@ -14,6 +14,8 @@ describe('published coordination model',()=>{
   expect(m.id).toBe('energy-center-precision-rebuild');
   expect(m.is_example).toBe(false);
   expect(m.provenance.coordination_draft).toBe(true);
+  expect(m.provenance.verified_solids).toBe(m.elements.filter(e=>(e.source.verification as {eligible?:boolean}|undefined)?.eligible===true).length);
+  expect(m.provenance.comparison_baseline).toBeUndefined();
   expect(input).not.toMatch(/[A-Z]:[\\/]/);
  });
  it('keeps unknown actual conditions from becoming an accessible route',()=>{

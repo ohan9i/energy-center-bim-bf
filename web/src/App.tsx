@@ -386,9 +386,13 @@ export default function App() {
     setBusy(true);
     try {
       if (model.provenance.precision_rebuild) {
-        const r = await request(base + (draft ? "models/precision-rebuild-coordination-draft.ifc" : "models/precision-rebuild-verified.ifc"));
+        const assets = model.provenance.ifc_assets as {draft?:string;verified?:string}|undefined;
+        const candidate = draft ? assets?.draft : assets?.verified;
+        const asset = candidate && /^precision-rebuild-(coordination-draft|verified)\.ifc$/.test(candidate)
+          ? candidate : draft ? "precision-rebuild-coordination-draft.ifc" : "precision-rebuild-verified.ifc";
+        const r = await request(base + "models/" + asset);
         download(await r.text(), draft ? "energy-center-Coordination-Draft.ifc" : "energy-center-Verified.ifc", "application/x-step");
-        setMessage(draft ? "검토용 Draft IFC를 저장했습니다. 미확정 입체와 적용 가정이 포함되며 설계 검증 완료 BIM이 아닙니다." : "검증 형상 IFC를 저장했습니다. 현재 검증된 입체 부재는 0개이며 층 공간 구조만 포함됩니다.");
+        setMessage(draft ? "검토용 Draft IFC를 저장했습니다. 미확정 입체와 적용 가정이 포함되며 설계 검증 완료 BIM이 아닙니다." : `검증 형상 IFC를 저장했습니다. 도면 근거와 검증 조건을 충족한 부재 ${Number(model.provenance.verified_solids ?? 0)}개를 포함합니다.`);
         setBusy(false);
         return;
       }
@@ -639,8 +643,9 @@ export default function App() {
           </button>
         </div>
         <div className="workspace-bar-actions">
-          {designer && (
+          {(designer || Boolean(model.provenance.precision_rebuild)) && (
             <div className="project-actions">
+              {designer && <>
               <button onClick={save} title="현재 브라우저에 모델 저장">
                 <Save size={15} />
                 <span>저장</span>
@@ -654,10 +659,11 @@ export default function App() {
                 <Download size={15} />
                 <span>JSON</span>
               </button>
+              </>}
               <button
                 disabled={(!api && !model.provenance.precision_rebuild) || busy}
                 onClick={() => exportIFC()}
-                title={model.provenance.precision_rebuild ? "미확정 입체를 제외한 IFC 다운로드 · 현재 층 공간 구조만 포함" : "IFC 생성에는 로컬 Python 서버가 필요합니다."}
+                title={model.provenance.precision_rebuild ? `근거 검증 부재 ${Number(model.provenance.verified_solids ?? 0)}개 · 미확정 부재 제외` : "IFC 생성에는 로컬 Python 서버가 필요합니다."}
               >
                 <Download size={15} />
                 <span>IFC</span>
