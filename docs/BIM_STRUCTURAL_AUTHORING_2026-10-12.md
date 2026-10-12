@@ -49,3 +49,7 @@ Python 전체 **102개**, 웹 **66개** 테스트를 통과했다. TypeScript/Vi
 다음 우선순위는 **1층의 1S4 패널 경계와 작은보 위치를 특정하는 것**, 그리고 실제 실·복도·문 연결을 확정하는 것이다. 본체 외부 참조가 확보되면 이번 해석 보의 원본 외곽·편심·단차를 다시 대조해야 한다.
 
 측정 기록은 `cad_output/precision-rebuild/coordination-v2/structural-authoring-validation.json`, `structural-quality.json`, 2층 전후 그림 `structural-before-after-f2.png`에 보존한다. 생성기는 `bf_bim/precise/structural_authoring.py`이며 기존 Coordination 생성 과정에서 실행한다.
+
+## 공개 반영 확인
+
+생성 코드·모델 커밋 `9bc6a93`을 main에 반영했고 [Pages 배포 38195497963](https://github.com/ohan9i/energy-center-bim-bf/actions/runs/38195497963)이 성공했다. [공개 사이트](https://ohan9i.github.io/energy-center-bim-bf/)의 revision 8 / modelling_version 11, 보 155개·전체 요소 2,439개를 확인했다. 공개 JSON과 두 IFC는 해당 Git 커밋의 파일과 바이트가 일치했다. 공개 Chrome/WebGL에서도 1층·2층·옥상 보 선택과 속성 표시를 다시 검사해 실행·HTTP 오류 0건을 확인했다. 결과는 `structural-deployment.json`, `browser-current/structure-results.json`에 보존한다. 구조 입체는 **Draft IFC**에 있으며 Verified IFC는 설계 검증 완료 입체가 없어 층 구조만 포함한다.
