@@ -4,6 +4,8 @@
 
 2026-10-12 최신 모델은 modelling_version 12 / revision 9이며, 사용자가 허용한 추정 보완을 포함합니다. [BIM 추정 보완과 접합 개선](BIM_ASSUMED_COMPLETION_2026-10-12.md)에 실제 수정·전후 측정·검증 한계를 기록합니다. 아래 revision 8 문구 정리 기록은 당시 배포 이력입니다.
 
+커밋 `8bd8bfa`의 [Pages 배포 38206566298](https://github.com/ohan9i/energy-center-bim-bf/actions/runs/38206566298)이 성공했습니다. 공개 모델 JSON과 두 IFC의 SHA-256이 해당 Git 모델과 일치합니다. 공개 Chrome에서도 새 모델과 제목, 추정 보 속성, 작은 도구 바, 도움말과 공간 검토, 390/320px 모바일 화면을 확인했으며 실행·HTTP 오류는 0건입니다. 기록은 `cad_output/precision-rebuild/coordination-v2/completion-deployment.json`, `browser-current/branding-results.json`에 보존합니다.
+
 사이트 이름은 **BIM 기반 BF개선**으로 유지합니다. 화면 문구에는 중간점을 쓰지 않으며, 모델의 원본 이름·근거는 변경하지 않고 표시 형식으로 정리합니다. 과도한 영문 장식과 반복 안내를 줄이고 기존 BIM/BF 기능과 검증 상태를 유지합니다. IFC 다운로드는 **검증 IFC**와 **검토 IFC**로 구분합니다.
 
 2026-10-12 문구 정리에서 상단 이름·브라우저 제목·메타 설명을 변경했고, 건물·객체·층 이름의 중간점은 표시할 때만 제거했습니다. 상세 검토 자료는 필요할 때 펼쳐 보고, 주요 미확정 항목은 한국어로 표시합니다. 표시한 이름으로 객체를 검색할 수 있으며 원본 이름을 붙여 넣어도 동일하게 찾습니다. 웹 테스트 66개, TypeScript/Vite 빌드와 하위 경로 검사, 기존 기능 19개 화면과 문구·도움말·공간 검토·390/320px 모바일 화면 검사를 통과했습니다. revision 8 모델 JSON과 두 IFC는 그대로 유지합니다.

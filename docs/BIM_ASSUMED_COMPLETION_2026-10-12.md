@@ -83,3 +83,5 @@ Python 전체 테스트 108개, 웹 테스트 67개와 TypeScript/Vite 빌드, P
 Chrome의 실제 WebGL에서 전체 외관, 정면, 지하층과 1~4층, 옥상·옥탑·PIT, 층 분리, 단면, 각 층의 실내 시점, 기존 문·창 상세와 추정 보 속성 등 25개 화면을 확인했다. 390px와 320px 모바일에서도 가로 넘침이 없으며 실행 오류와 HTTP 오류는 0건이다. 결과와 캡처는 `browser-current/completion-results.json`과 같은 폴더에 보존한다.
 
 사용자의 추가 요청으로 하단 도구 바를 축소했다. 데스크톱 실측은 271.17×34px, 모바일 390px 화면에서는 299.17×42px, 320px 화면에서는 271.17×42px다. 아이콘은 16px에서 14px로 줄이고 텍스트를 아이콘 중심으로 정리했으며, 접근성 이름과 툴팁, 모든 버튼 기능은 유지한다. 전체 홈페이지 구조와 디자인은 유지한다.
+
+커밋 `8bd8bfa`를 원격 main에 반영했고 [GitHub Pages 배포 38206566298](https://github.com/ohan9i/energy-center-bim-bf/actions/runs/38206566298)이 성공했다. 공개 JSON 및 IFC 두 개의 SHA-256은 해당 Git 파일과 일치하며, 공개 Chrome의 데스크톱·속성·390/320px 모바일 검토도 통과했다. 사이트는 https://ohan9i.github.io/energy-center-bim-bf/ 에서 확인할 수 있다.
