@@ -7,7 +7,7 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
  fs.mkdirSync(out,{recursive:true});
  try{
   const model=JSON.parse(fs.readFileSync('web/public/models/precision-rebuild.json','utf8'));
-  assert.equal(model.provenance.modelling_version,10);
+  assert.equal(model.provenance.modelling_version,11);
   const base='/energy-center-bim-bf/';
   let origin=process.env.BIM_QA_URL;
   if(!origin){server=http.createServer((req,res)=>{
@@ -37,6 +37,22 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   assert.equal(await page.getByLabel('BIM 건축물').inputValue(),model.id);
   assert.equal(await canvas.getAttribute('data-model-components'),String(model.elements.reduce((n,e)=>n+e.components.length,0)));
   assert.equal(await page.locator('.fallback').count(),0);
+  if(process.argv.includes('--structure-only')){
+   for(const fid of ['f1','f2','roof']){
+    const e=model.elements.filter(e=>e.floor_id===fid&&e.type==='beam').sort((a,b)=>b.source.structural_girder.span_m-a.source.structural_girder.span_m)[0];
+    assert(e&&e.components.length);
+    await page.getByLabel('표시 층').selectOption(fid);await page.getByLabel('객체 검색').fill(e.id);
+    await page.locator(`.object-row[title$="${e.id}"]`).click();
+    const text=await page.locator('.architectural-properties').innerText();
+    assert(text.includes('구조 보 단면'));assert(text.includes('일람표 대조'));assert(text.includes('해석 형상'));
+    await page.getByRole('button',{name:'선택 확대',exact:true}).click();await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();
+    await screen('after-structural-girder-'+fid);
+    await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();await page.getByLabel('객체 검색').fill('');
+   }
+   assert.deepEqual(errors,[]);assert.deepEqual(badRequests,[]);
+   fs.writeFileSync(path.join(out,'structure-results.json'),JSON.stringify({status:'passed',origin,screens,errors,badRequests},null,2));
+   console.log(JSON.stringify({status:'passed',screens:screens.length,errors,badRequests}));return;
+  }
   if(process.argv.includes('--walls-only')){
    for(const fid of ['f1','f2']){
     const e=model.elements.filter(e=>e.floor_id===fid&&e.source.native_wall_closure).sort((a,b)=>b.source.native_wall_closure.recovered_area_m2-a.source.native_wall_closure.recovered_area_m2)[0];

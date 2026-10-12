@@ -59,6 +59,7 @@ export default function BimInspector({
   const windowSchedule = item?.source.schedule_assignment as {mark:string;width_m:number;height_m:number;sill_m:number;
     glass_thickness_m:number;glazing_build_up_m:number[]|null;scope_text:string;description:string[]}|undefined;
   const doorSchedule = item?.source.door_schedule_assignment as {mark:string;width_m:number;height_m:number;leaf_head_m:number;scope_text:string}|undefined;
+  const girder = item?.source.structural_girder as {mark:string;section_m:number[];span_m:number;support_ids:string[]}|undefined;
   const survey = model.provenance.drawing_evidence as
     | {
         column_sections?: {
@@ -130,8 +131,9 @@ export default function BimInspector({
                 ).toFixed(3)}{" "}
                 m
               </dd>
-        <dt>{doorSchedule ? "출입문 폭 · 높이" : windowSchedule ? "창호 폭 · 높이" : "높이 / 두께"}</dt>
-              <dd>{windowSchedule || doorSchedule ? `${(windowSchedule ?? doorSchedule)!.mark} · ${format((windowSchedule ?? doorSchedule)!.width_m)} × ${format((windowSchedule ?? doorSchedule)!.height_m)} (도면 대조)` : format(item.height)}</dd>
+        <dt>{girder ? "구조 보 단면" : doorSchedule ? "출입문 폭 · 높이" : windowSchedule ? "창호 폭 · 높이" : "높이 / 두께"}</dt>
+              <dd>{girder ? `${girder.mark} · ${format(girder.section_m[0])} × ${format(girder.section_m[1])} (일람표 대조)` : windowSchedule || doorSchedule ? `${(windowSchedule ?? doorSchedule)!.mark} · ${format((windowSchedule ?? doorSchedule)!.width_m)} × ${format((windowSchedule ?? doorSchedule)!.height_m)} (도면 대조)` : format(item.height)}</dd>
+              {girder && <><dt>기둥 중심간 경간</dt><dd>{format(girder.span_m)}<small>주열·보 부호·지지 기둥을 연결한 해석 형상입니다. 원본 보 외곽·개별 SL 높이·설계 승인은 미확정입니다.</small></dd></>}
               <dt>모델 평면 면적</dt>
               <dd>
                 {planArea(item).toFixed(2)} m²{" "}

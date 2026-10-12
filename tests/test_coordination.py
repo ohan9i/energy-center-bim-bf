@@ -27,7 +27,12 @@ def test_draft_export_cannot_bypass_explicit_metadata():
 @pytest.mark.skipif(not Path('cad_output/precision-rebuild/coordination-v2/preview.json').exists(),reason='Generate artifact first')
 def test_generated_coordination_honours_evidence_and_openings():
     m=Model.model_validate_json(Path('cad_output/precision-rebuild/coordination-v2/preview.json').read_text(encoding='utf-8'))
-    assert not any(e.verified or e.type=='beam' for e in m.elements)
+    assert not any(e.verified for e in m.elements)
+    for e in m.elements:
+        if e.type=='beam':
+            evidence=e.source['structural_girder']
+            assert len(evidence['support_ids'])==2 and evidence['section_references']
+            assert not evidence['native_outline_recovered'] and not evidence['member_assignment_verified']
     assert len([e for e in m.elements if e.type=='column'])==211
     assert {'wall','window','door','floor','roof','stair','elevator'}<=set(e.type for e in m.elements)
     for e in m.elements:

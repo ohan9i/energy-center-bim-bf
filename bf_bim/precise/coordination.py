@@ -187,7 +187,6 @@ def build(sync_web=False,reviews_path=None):
                     raw_wall_evidence[(fid,observed['id'])]={'cad_id':observed['id'],'points':list(line.coords),
                         'layer':native_layers[observed['id']],'length_m':line.length}
                 except (ValueError,KeyError):pass
-    del archive
     portals=defaultdict(list)
     for e in elements:
         if e['type'] not in ('door','window') or not e['components']:continue
@@ -388,6 +387,14 @@ def build(sync_web=False,reviews_path=None):
         slabs+=es
         roof_report.append({'floor':fid,'area_m2':outline.area,'source_traces':len(ts),'copied_4f':False})
 
+    # Interpret only uniquely supported, schedule-sized structural girders.
+    from .structural_authoring import build_girders, trim_wall_heads
+    structural_archive,structural_row=load_archive('S02-001~',rows)
+    beams,structural_report=build_girders(elements,specs,archive,structural_archive,structural_row,schedule)
+    del archive,structural_archive
+    structural_report['wall_head_cuts']=trim_wall_heads(elements,beams,specs)
+    elements.extend(beams)
+
     # Stable component identities and inspectable dimensions/assumptions.
     for e in elements:
         cleaned=[]
@@ -484,13 +491,13 @@ def build(sync_web=False,reviews_path=None):
             'height_assignment_status':e['source']['property_status']['height'],'direction_verified':False})
 
     model=Model.model_validate({'id':preview['id'],'name':'에너지융복합종합지원센터 · 통합 3D 검토 Draft',
-        'revision':7,'floors':preview['floors'],'elements':elements,'places':legacy['places'],'links':[],
+        'revision':8,'floors':preview['floors'],'elements':elements,'places':legacy['places'],'links':[],
         'warnings':['Coordination Draft: 검증 완료 설계 BIM이 아닙니다. 부재와 속성별 가정을 확인하세요.',
-                    '구조 보의 위치·부호가 연결되지 않아 보를 임의 생성하지 않았습니다.',
+                    '구조 보는 주열·G 부호·기둥 지지점·단면표를 연결한 해석 모델이며 원본 보 외곽·개별 SL 레벨은 미확정입니다. 작은보·미연결 부호는 생성하지 않았습니다.',
                     'PIT·옥탑 외벽·파라펫 상세는 본체/높이 근거 부족으로 미구현입니다.',
                     '상부 지붕은 자체 도면의 경계 후보이며 평지붕 레벨·두께는 가정입니다.',
                     '실·복도 경계 미분류 영역이 남아 전체 내부 공간 분할과 실제 BF 통행 검증은 미완료입니다.'],
-        'provenance':{**preview['provenance'],'modelling_version':10,'export_status':'coordination_draft',
+        'provenance':{**preview['provenance'],'modelling_version':11,'export_status':'coordination_draft',
              'coordination_draft':True,'assumption_parameters':assumptions,'verified_solids':verified_count,
              'verification_policy':'member-evidence/1',
              'junction_audit':junctions['summary'],
@@ -506,7 +513,9 @@ def build(sync_web=False,reviews_path=None):
                   'merged_duplicate_door_leaves':sum(len(q['superseded_leaf_ids']) for q in door_geometry),
                   'dimensioned_door_assignments':len(door_assignments),
                   'native_wall_gap_profiles':len(wall_recovery),
-                  'native_wall_gap_area_m2':sum(r['area_m2'] for r in wall_recovery)},
+                  'native_wall_gap_area_m2':sum(r['area_m2'] for r in wall_recovery),
+                  'interpreted_structural_girders':len(beams),
+                  'structural_wall_head_cuts':len(structural_report['wall_head_cuts'])},
              'candidate_cache_sha256':sha256(ROOT/'cad_output/energy-center-model.json'),
              'strict_stage_sha256':sha256(BASE/'bim.json'),'roof_report':roof_report,
              'preview_policy':'Drawing positions and provisional architectural assemblies; separate verified and Draft IFC.'}})
@@ -545,6 +554,7 @@ def build(sync_web=False,reviews_path=None):
         'final_profiles':audit_window_profiles(elements),'design_verified':False})
     save('door-geometry-validation.json',{'native_assemblies':door_geometry,'schedule_assignments':door_assignments,'design_verified':False})
     save('wall-recovery-validation.json',{'recovered':wall_recovery,'design_verified':False})
+    save('structural-authoring-validation.json',structural_report)
     summary={'status':'coordination_draft','elements':len(elements),'components':sum(len(e['components']) for e in elements),
         'types':dict(Counter(e['type'] for e in elements)),'floors':dict(Counter(e['floor_id'] for e in elements)),
         'statuses':dict(Counter(e['source']['validation_status'] for e in elements)),'verified_solids':verified_count,

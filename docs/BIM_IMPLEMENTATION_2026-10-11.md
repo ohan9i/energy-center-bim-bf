@@ -1,5 +1,7 @@
 # BIM 정확도 개선 구현 결과
 
+2026-10-12 최신 revision 8의 구조 보 155개, 슬래브 두께·벽 상단 접합 수정은 [구조 도면 모델 반영 결과](BIM_STRUCTURAL_AUTHORING_2026-10-12.md)에 기록한다. 아래 revision 7 및 이전 내용은 해당 단계의 기록이다.
+
 2026-10-12 최신 revision 7의 전 층 출입문 복원, 벽 접합부 96개 복구와 남은 공간 분할 문제는 [건물 전체 정밀 검토 결과](BIM_WHOLE_BUILDING_PRECISION_2026-10-12.md)에 기록한다. 아래 내용은 이전 단계의 기록이다.
 
 최신 revision 6의 원본 프레임·창호 입면 규격·복층유리·IFC 관계 수정은 [작성 품질 개선 결과](BIM_AUTHORING_IMPROVEMENT_2026-10-11.md)를 참고한다. 앞선 revision 5는 [집중 개선 결과](BIM_FOCUSED_IMPROVEMENT_2026-10-11.md)에 있다. 아래 revision 3·4의 기록과 구분한다.
