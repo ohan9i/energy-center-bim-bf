@@ -3,7 +3,7 @@
 No snapping beyond the rebuild's numeric grid, buffering of open lines, or
 joining gaps. Only leftover faces with a real interior survive the gate.
 """
-from collections import defaultdict
+from collections import defaultdict, Counter
 from shapely.geometry import LineString,Polygon
 from shapely.geometry.polygon import orient
 from shapely import constrained_delaunay_triangles
@@ -20,6 +20,7 @@ def exact_prism_mesh(poly,height):
     from bf_bim.schema import SolidMesh
     poly=orient(poly,sign=1)
     vertices=[];lookup={};faces=[]
+    boundary_edges=Counter()
     def vertex(x,y,z):
         key=(x,y,z)
         if key not in lookup:lookup[key]=len(vertices);vertices.append(key)
@@ -27,13 +28,17 @@ def exact_prism_mesh(poly,height):
     for triangle in constrained_delaunay_triangles(poly).geoms:
         if not poly.covers(triangle):continue
         coords=list(orient(triangle,sign=1).exterior.coords)[:-1]
+        for p,q in zip(coords,coords[1:]+coords[:1]):boundary_edges[(p,q)]+=1
         a,b,c=[vertex(x,y,0.) for x,y in coords];faces.append((a,c,b))
         a,b,c=[vertex(x,y,height) for x,y in coords];faces.append((a,b,c))
-    for ring in (poly.exterior,*poly.interiors):
-        coords=list(ring.coords)
-        for (x,y),(u,v) in zip(coords,coords[1:]):
-            a=vertex(x,y,0.);b=vertex(u,v,0.);c=vertex(u,v,height);d=vertex(x,y,height)
-            faces.extend(((a,b,c),(a,c,d)))
+    # CDT can omit a redundant collinear ring vertex. Side faces must use
+    # exactly the cap's edges, otherwise the cap/side meet in a T junction.
+    # This changes tessellation only, never the polygon or its dimensions.
+    for ((x,y),(u,v)),count in boundary_edges.items():
+        if boundary_edges[((u,v),(x,y))]:continue
+        if count!=1:raise ValueError('Non-manifold constrained cap boundary')
+        a=vertex(x,y,0.);b=vertex(u,v,0.);c=vertex(u,v,height);d=vertex(x,y,height)
+        faces.extend(((a,b,c),(a,c,d)))
     return SolidMesh(vertices=vertices,triangles=faces).model_dump()
 
 def recover_wall_gaps(traces,wall_candidates,columns,portals):

@@ -34,10 +34,11 @@ def is_boolean_sliver(poly):
     """Small vertex spacing is not the same as an entirely thin solid.
 
     A real 30 x 15 mm corner can have a 0.096 mm CAD edge. Preserve its
-    substantial interior; reject only fragments whose whole interior is thin.
+    substantial interior; reject only small fragments whose whole interior is
+    thin. Sub-millimetre overlap plates are numerical remainders, not walls.
     This is a numeric rendering filter, never a design verification criterion.
     """
-    return poly.area<.005 and poly.minimum_clearance<.0001 and poly.buffer(-.001).is_empty
+    return poly.area<.005 and poly.minimum_clearance<.001 and poly.buffer(-.001).is_empty
 
 
 def host_opening(wall, portal, max_host_distance=.2):
@@ -170,6 +171,12 @@ def attach_evidence(elements, specs, missing_by_file, reviews=None):
             'scope':{'status':'candidate','value':e['floor_id'],'references':refs},
             'revision':{'status':'unresolved','references':refs},
         }
+        if src.get('user_assumed_completion'):
+            src.setdefault('property_status',{}).update(position='provisional',section='provisional')
+            for key in ('position','profile'):
+                src['property_evidence'][key]={'status':'provisional','references':refs,
+                    'reason':'User-authorised assumed completion; CAD IDs are context references, not approval of this geometry.'}
+            src['property_evidence']['base']['status']='provisional'
         if src.get('plan_schedule_links'):
             src['property_evidence']['member_mark']={'status':'candidate','references':src['plan_schedule_links'],
                 'reason':'Registered plan callout candidates; unresolved leader/member and schedule assignment'}
@@ -281,7 +288,8 @@ def audit_relationships(elements, specs, courtyard):
                 'note':'Offset or changed wall layout is not automatically a defect'})
     failed=[r for r in opening_checks if r['status']=='failed']
     if failed or any(r['slab_protected_void_overlap_m2']>1e-4 or r['wall_column_solid_overlap_m2']>1e-4 for r in reports):
-        raise AssertionError('Coordination topology checks failed')
+        bad_floors=[r for r in reports if r['slab_protected_void_overlap_m2']>1e-4 or r['wall_column_solid_overlap_m2']>1e-4]
+        raise AssertionError('Coordination topology checks failed: '+json.dumps({'floors':bad_floors,'openings':failed[:5]}))
     return {'floors':reports,'host_openings':opening_checks,'contacts':contacts,'floor_alignment':alignment,
             'status':'passed_geometric_checks','design_verified':False,
             'unverified_checks':['FFL/SSL member junction','curtain-wall design detail','beam location/section assignment',

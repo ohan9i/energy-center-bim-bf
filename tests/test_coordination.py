@@ -29,7 +29,7 @@ def test_generated_coordination_honours_evidence_and_openings():
     m=Model.model_validate_json(Path('cad_output/precision-rebuild/coordination-v2/preview.json').read_text(encoding='utf-8'))
     assert not any(e.verified for e in m.elements)
     for e in m.elements:
-        if e.type=='beam':
+        if e.type=='beam' and not e.source.get('user_assumed_completion'):
             evidence=e.source['structural_girder']
             assert len(evidence['support_ids'])==2 and evidence['section_references']
             assert not evidence['native_outline_recovered'] and not evidence['member_assignment_verified']

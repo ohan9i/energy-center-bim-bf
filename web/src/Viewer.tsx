@@ -8,7 +8,7 @@ import { bounds, raw } from "./geometry";
 import type { RouteResult } from "./navigation";
 import { renderPieces, floorOffset, createRenderContext } from "./bimGeometry";
 import { pieceGeometry, sectionCap, wallEdges } from "./architecturalGeometry";
-import { interiorView } from "./interiorView";
+import { interiorView, interiorCeilingFloor } from "./interiorView";
 import {spatialData,approved,physicalBlockers,difference,modelFingerprint} from './spatial';
 import {buildSpatialNetwork} from './spatialRoute';
 import {
@@ -175,6 +175,10 @@ export default function Viewer({
     controls.enableRotate = !plan;
     controls.maxPolarAngle = Math.PI * 0.94;
     controls.minDistance = 0.25;
+    const ceilingFloor=walking&&!plan&&assumptions&&!isolationKey?interiorCeilingFloor(model,floor):null;
+    // Keep the physical building around an indoor camera: upper stairwell
+    // walls and roofs must remain visible through an actual floor opening.
+    const indoorContext=walking&&!plan&&assumptions&&!isolationKey;
     const visible = model.elements.filter(
       (e) =>
         !e.excluded &&
@@ -182,7 +186,7 @@ export default function Viewer({
         (evidenceMode !== "verified" || (e.source.validation_status === "verified" && (e.source.verification as {eligible?:boolean}|undefined)?.eligible === true)) &&
         (evidenceMode !== "drawing" || e.source.geometry_status === "measured_plan" || Boolean(e.source.precision_member_id)) &&
         !hiddenIds.includes(e.id) &&
-        (floor === "all" || e.floor_id === floor) &&
+        (floor === "all" || e.floor_id === floor || indoorContext) &&
         (!isolationKey || e.id === isolationKey),
     );
     const renderContext = createRenderContext(model);
@@ -195,6 +199,7 @@ export default function Viewer({
     const nativeTraces = model.provenance.cad_traces as {floor_id:string;kind:string;points:XY[]}[] | undefined;
     renderer.domElement.dataset.evidenceMode = evidenceMode;
     renderer.domElement.dataset.displayedElements = String(visible.length);
+    renderer.domElement.dataset.interiorCeilingElements=String(visible.filter(e=>e.floor_id===ceilingFloor).length);
     const visibleTraces = (nativeTraces ?? []).filter(t => evidenceMode !== "verified" &&
       (!model.provenance.coordination_draft || evidenceMode === "drawing") && (floor === "all" || t.floor_id === floor) && !isolationKey);
     const extent = visible.length || visibleTraces.length
@@ -1037,7 +1042,7 @@ export default function Viewer({
           </button>
         </div>
         <div className="advanced-tools">
-          <button aria-label="BF 공간 표시" aria-pressed={spatialMode} onClick={()=>setSpatialMode(v=>!v)}>BF 공간 표시</button>
+          <button aria-label="BF 공간 표시" title="BF 공간 표시" aria-pressed={spatialMode} onClick={()=>setSpatialMode(v=>!v)}>BF 공간 표시</button>
           <button
             aria-label="선택 객체 숨기기"
             title="선택 객체 숨기기"

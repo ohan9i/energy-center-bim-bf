@@ -7,7 +7,7 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
  fs.mkdirSync(out,{recursive:true});
  try{
   const model=JSON.parse(fs.readFileSync('web/public/models/precision-rebuild.json','utf8'));
-  assert.equal(model.provenance.modelling_version,11);
+  assert.equal(model.provenance.modelling_version,12);
   const base='/energy-center-bim-bf/';
   let origin=process.env.BIM_QA_URL;
   if(!origin){server=http.createServer((req,res)=>{
@@ -39,6 +39,8 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   assert.equal(await page.getByLabel('BIM 건축물').inputValue(),model.id);
   assert.equal(await canvas.getAttribute('data-model-components'),String(model.elements.reduce((n,e)=>n+e.components.length,0)));
   assert.equal(await page.locator('.fallback').count(),0);
+  const desktopToolbar=await page.locator('.bim-view-options').boundingBox();
+  assert(desktopToolbar&&desktopToolbar.height<=36&&desktopToolbar.width<=350,'Viewer toolbar is not compact');
   if(process.argv.includes('--branding-only')){
    assert.equal(require('node:child_process').execFileSync('git',['diff','--name-only','HEAD','--','web/public/models'],{encoding:'utf8'}).trim(),'','Published model data changed');
    async function cleanText(){
@@ -135,8 +137,8 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   assert(verified.includes('IFCBUILDINGSTOREY'));
   if(model.provenance.verified_solids===0)assert(!/IFC(?:WALL|COLUMN|BEAM|SLAB|WINDOW|DOOR)\(/.test(verified));
   const draft=await download('검토 IFC','draft-download.ifc');assert(draft.includes('DRAFT - NOT DESIGN VERIFIED'));
-  for(const fid of ['b1','f1','f2','f3','f4','roof','phroof']){
-   if(fid==='phroof'){await tools('표시 설정');await page.getByLabel('검증 상태 표시').selectOption('drawing');}
+  for(const fid of ['b1','f1','f2','f3','f4','roof','phroof',...(process.argv.includes('--model-only')?['pit']:[])]){
+   if(fid==='phroof'&&!process.argv.includes('--model-only')){await tools('표시 설정');await page.getByLabel('검증 상태 표시').selectOption('drawing');}
    await page.getByLabel('표시 층').selectOption(fid);await screen('after-floor-'+fid);
   }
   await page.getByLabel('표시 층').selectOption('f1');await tools('표시 설정');await page.getByLabel('검증 상태 표시').selectOption('highlight');await screen('after-evidence-highlight');
@@ -157,6 +159,7 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   await tools('단면과 층 분리');await page.getByRole('button',{name:'단면과 분리 초기화',exact:true}).click();
   await page.getByLabel('표시 층').selectOption('f1');await page.getByRole('button',{name:'실내 시점',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.viewer canvas')?.dataset.walking==='true');await screen('after-interior-f1');
+  if(process.argv.includes('--model-only'))assert(Number(await canvas.getAttribute('data-interior-ceiling-elements'))>0);
   await page.getByRole('button',{name:'실내 시점 종료',exact:true}).click();
   for(const [fid,id,label] of [
    ['f1','coord-e09c1449d93909693e2f','after-schedule-aw1-f1'],
@@ -172,6 +175,29 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
    await page.getByRole('button',{name:'선택 객체만 보기',exact:true}).click();await page.getByLabel('객체 검색').fill('');
   }
   await page.getByLabel('표시 층').selectOption('all');
+  if(process.argv.includes('--model-only')){
+   for(const fid of ['b1','f2','f3','f4']){
+    await page.getByLabel('표시 층').selectOption(fid);await page.getByRole('button',{name:'실내 시점',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('.viewer canvas')?.dataset.walking==='true');await screen('after-interior-'+fid);
+    assert(Number(await canvas.getAttribute('data-interior-ceiling-elements'))>0);
+    await page.getByRole('button',{name:'실내 시점 종료',exact:true}).click();
+   }
+   const assumed=model.elements.find(e=>e.type==='beam'&&e.floor_id==='f1'&&e.source.user_assumed_completion);
+   assert(assumed);await page.getByLabel('표시 층').selectOption('f1');await page.getByLabel('객체 검색').fill(assumed.id);
+   await page.locator(`.object-row[title$="${assumed.id}"]`).click();
+   assert((await page.locator('.architectural-properties').innerText()).includes('추정 보완 형상, 도면 확인 필요'));
+   await page.getByRole('button',{name:'선택 확대',exact:true}).click();await screen('after-assumed-beam-inspector');
+   await page.getByLabel('객체 검색').fill('');await page.getByLabel('표시 층').selectOption('all');
+   const mobileToolbars=[];
+   for(const width of [390,320]){
+    await page.setViewportSize({width,height:844});await ready();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1));
+    const bar=await page.locator('.bim-view-options').boundingBox();assert(bar&&bar.height<=42&&bar.x>=0&&bar.x+bar.width<=width);
+    mobileToolbars.push({viewportWidth:width,...bar});await page.screenshot({path:path.join(out,'after-completion-mobile-'+width+'.png')});
+   }
+   assert.deepEqual(errors,[]);assert.deepEqual(badRequests,[]);
+   fs.writeFileSync(path.join(out,'completion-results.json'),JSON.stringify({status:'passed',origin,screens,errors,badRequests,desktopToolbar,mobileToolbars,routeCalculated:false,verifiedSolids:model.provenance.verified_solids},null,2));
+   console.log(JSON.stringify({status:'passed',screens:screens.length,errors,badRequests,routeCalculated:false}));return;
+  }
   await page.getByRole('button',{name:'BF 경로 탐색',exact:true}).click();await page.getByRole('button',{name:'경로 탐색',exact:true}).click();await page.getByText('경로 없음',{exact:true}).waitFor({timeout:30000});
   await page.getByLabel('JSON model import').setInputFiles(path.resolve('web/tests/fixtures/navigation-model.json'));
   await page.getByRole('button',{name:'경로 탐색',exact:true}).click();await page.getByText('조건 충족 경로',{exact:true}).waitFor({timeout:30000});

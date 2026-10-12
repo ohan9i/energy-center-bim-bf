@@ -391,9 +391,11 @@ def build(sync_web=False,reviews_path=None):
     from .structural_authoring import build_girders, trim_wall_heads
     structural_archive,structural_row=load_archive('S02-001~',rows)
     beams,structural_report=build_girders(elements,specs,archive,structural_archive,structural_row,schedule)
-    del archive,structural_archive
-    structural_report['wall_head_cuts']=trim_wall_heads(elements,beams,specs)
     elements.extend(beams)
+    from .completion import complete
+    completion_report=complete(elements,specs,traces,structural_archive,structural_row,schedule,structural_report)
+    del archive,structural_archive
+    structural_report['wall_head_cuts']=trim_wall_heads(elements,[e for e in elements if e['type']=='beam'],specs)
 
     # Stable component identities and inspectable dimensions/assumptions.
     for e in elements:
@@ -418,21 +420,33 @@ def build(sync_web=False,reviews_path=None):
                 if sliver:
                     e['source'].setdefault('omitted_boolean_slivers',[]).append({**profile_dict(q),
                         'area_m2':q.area,'minimum_clearance_m':q.minimum_clearance,'status':'unresolved',
-                        'reason':'Sub-0.1 mm neck left by candidate-band Boolean assembly; OCCT does not preserve this numerical remnant.'})
+                        'reason':'Small entirely sub-millimetre overlap fragment; OCCT collapses its faces. Native observation retained, no fabricated wall plate.'})
                 if q.area>1e-7 and width>=.0001 and not sliver:
                     cleaned.append({**c,**profile_dict(q)})
         e['components']=cleaned
-        if e['source'].get('native_wall_closure'):
+        if (e['source'].get('native_wall_closure') or e['source'].get('user_assumed_completion')
+                or e['source'].get('slab_joint_removed_volume_m3') or e['source'].get('structural_head_cut_volume_m3')):
             # Use the same final numerical-cleanup profile as every wall. A
             # tessellation must not bypass cleanup or become stale afterwards.
+            from .completion import regularized_profiles
+            manifold=[]
             for c in cleaned:
-                c['mesh']=exact_prism_mesh(Polygon(c['polygon'],c['holes']),c['height'])
-                c['source']['representation']='exact final-profile prism tessellation; no additional contour smoothing'
+                for q,adjusted in regularized_profiles(Polygon(c['polygon'],c['holes'])):
+                    part={**c,**profile_dict(q),'source':deepcopy(c['source'])}
+                    if adjusted:part['source']['numeric_hole_clearance_m']=.0001
+                    try:part['mesh']=exact_prism_mesh(q,part['height'])
+                    except Exception:
+                        save('completion-mesh-failure.json',{'id':e['id'],'floor_id':e['floor_id'],'component':part})
+                        raise
+                    part['source']['representation']='final-profile prism tessellation; recorded 0.1 mm clearance only at non-manifold touching holes'
+                    manifold.append(part)
+            cleaned=manifold;e['components']=cleaned
         if e['type']=='wall' and not cleaned:
             e['source'].update(validation_status='unresolved',unresolved_plan_only=True,
                 unresolved_no_representation=True)
             e['source']['unknowns']=e['source'].get('unknowns',[])+['No renderable wall solid after Boolean sliver cleanup; native traces retained.']
         e['source']['numeric_cleanup']={'grid_m':1e-6,'simplification_m':.00001,'minimum_fragment_width_m':.0001,
+            'small_boolean_sliver_clearance_m':.001,
             'wall_neck_opening_radius_m':.0001,
             'reason':'Remove sub-OCCT tolerance Boolean slivers; source observation retained in strict stage.'}
         for i,c in enumerate(e['components']):
@@ -491,13 +505,16 @@ def build(sync_web=False,reviews_path=None):
             'height_assignment_status':e['source']['property_status']['height'],'direction_verified':False})
 
     model=Model.model_validate({'id':preview['id'],'name':'에너지융복합종합지원센터 · 통합 3D 검토 Draft',
-        'revision':8,'floors':preview['floors'],'elements':elements,'places':legacy['places'],'links':[],
+        'revision':9,'floors':preview['floors'],'elements':elements,'places':legacy['places'],'links':[],
         'warnings':['Coordination Draft: 검증 완료 설계 BIM이 아닙니다. 부재와 속성별 가정을 확인하세요.',
-                    '구조 보는 주열·G 부호·기둥 지지점·단면표를 연결한 해석 모델이며 원본 보 외곽·개별 SL 레벨은 미확정입니다. 작은보·미연결 부호는 생성하지 않았습니다.',
-                    'PIT·옥탑 외벽·파라펫 상세는 본체/높이 근거 부족으로 미구현입니다.',
+                    '구조 보의 원본 외곽과 개별 SL 레벨은 미확정입니다. 추가 작은보와 일부 보 배치는 사용자가 허용한 추정 형상입니다.',
+                    '슬래브 패널 경계, 벽체 보완, 옥탑 코어 지붕, PIT와 파라펫은 주변 형상에 맞춘 추정이며 설계 확인이 필요합니다.',
                     '상부 지붕은 자체 도면의 경계 후보이며 평지붕 레벨·두께는 가정입니다.',
                     '실·복도 경계 미분류 영역이 남아 전체 내부 공간 분할과 실제 BF 통행 검증은 미완료입니다.'],
-        'provenance':{**preview['provenance'],'modelling_version':11,'export_status':'coordination_draft',
+        'provenance':{**preview['provenance'],'modelling_version':12,'export_status':'coordination_draft',
+             'assumed_completion':{'authorization':completion_report['authorization'],'design_verified':False,
+                 'elements':sum(bool(e['source'].get('user_assumed_completion')) for e in elements),
+                 'report':'completion-validation.json','route_calculated':False},
              'coordination_draft':True,'assumption_parameters':assumptions,'verified_solids':verified_count,
              'verification_policy':'member-evidence/1',
              'junction_audit':junctions['summary'],
@@ -515,7 +532,10 @@ def build(sync_web=False,reviews_path=None):
                   'native_wall_gap_profiles':len(wall_recovery),
                   'native_wall_gap_area_m2':sum(r['area_m2'] for r in wall_recovery),
                   'interpreted_structural_girders':len(beams),
-                  'structural_wall_head_cuts':len(structural_report['wall_head_cuts'])},
+                  'structural_wall_head_cuts':len(structural_report['wall_head_cuts']),
+                  'assumed_beams':len(completion_report['beams']['added']),
+                  'assumed_wall_infills':len(completion_report['walls']),
+                  'slab_joint_cuts':len(completion_report['slab_junctions'])},
              'candidate_cache_sha256':sha256(ROOT/'cad_output/energy-center-model.json'),
              'strict_stage_sha256':sha256(BASE/'bim.json'),'roof_report':roof_report,
              'preview_policy':'Drawing positions and provisional architectural assemblies; separate verified and Draft IFC.'}})
@@ -547,7 +567,7 @@ def build(sync_web=False,reviews_path=None):
         'window_catalog':window_specs,'window_assignments':window_assignments,
         'door_catalog':door_specs,'door_assignments':door_assignments,'door_tag_correlations':door_links,
         'stair_section_observations':section_steps,'missing_references':missing_refs,
-        'unassigned_reason':'No unambiguous member mark, structural plan position, floor/revision scope combination; no invented beams/slab specification'})
+        'unassigned_reason':'Unresolved members retain no design approval; user-authorised assumed beam/panel completion is recorded separately in completion-validation.json'})
     save('validation.json',checks)
     save('window-geometry-validation.json',{'windows':window_geometry,
         'native_frames':frame_geometry,'schedule_assignments':window_assignments,
@@ -555,6 +575,7 @@ def build(sync_web=False,reviews_path=None):
     save('door-geometry-validation.json',{'native_assemblies':door_geometry,'schedule_assignments':door_assignments,'design_verified':False})
     save('wall-recovery-validation.json',{'recovered':wall_recovery,'design_verified':False})
     save('structural-authoring-validation.json',structural_report)
+    save('completion-validation.json',completion_report)
     summary={'status':'coordination_draft','elements':len(elements),'components':sum(len(e['components']) for e in elements),
         'types':dict(Counter(e['type'] for e in elements)),'floors':dict(Counter(e['floor_id'] for e in elements)),
         'statuses':dict(Counter(e['source']['validation_status'] for e in elements)),'verified_solids':verified_count,

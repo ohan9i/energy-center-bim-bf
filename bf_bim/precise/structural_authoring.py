@@ -206,6 +206,7 @@ def trim_wall_heads(elements,beams,specs):
             if not cuts:result.append(c);continue
             levels=sorted({low,high,*[v for lo,hi,_,_ in cuts for v in (lo,hi)]})
             for lo,hi in zip(levels,levels[1:]):
+                if hi-lo<1e-7:continue
                 active=[p for a,b,p,_ in cuts if a<hi-1e-8 and b>lo+1e-8]
                 net=profile.difference(unary_union(active));volume+=(profile.area-net.area)*(hi-lo)
                 for p in polygon_parts(net):

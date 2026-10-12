@@ -40,6 +40,8 @@ def test_short_cad_edge_does_not_delete_substantial_corner_solid():
     assert corner.minimum_clearance<.0001
     assert not is_boolean_sliver(corner)
     assert is_boolean_sliver(box(0,0,2,.00005))
+    assert is_boolean_sliver(box(0,0,2,.000124))
+    assert not is_boolean_sliver(box(0,0,.03,.015))
 
 
 def test_basement_riser_count_and_soffit_are_reconstructed_without_scaling_rail():

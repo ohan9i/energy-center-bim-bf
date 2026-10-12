@@ -880,16 +880,16 @@ details summary::marker {
 }
 .bim-view-options {
   position: absolute;
-  bottom: 28px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
   display: flex;
   gap: 0;
-  padding: 5px;
+  padding: 2px;
   background: #fff;
   border: 1px solid #dce2da;
-  border-radius: 7px;
+  border-radius: 5px;
   box-shadow: 0 3px 12px #25332808;
   max-width: calc(100% - 28px);
 }
@@ -897,25 +897,37 @@ details summary::marker {
 .advanced-tools {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 .camera-tools {
-  padding-right: 5px;
-  margin-right: 5px;
+  padding-right: 3px;
+  margin-right: 3px;
   border-right: 1px solid var(--line);
 }
-.bim-view-options button {
+.camera-tools > button,
+.advanced-tools > button {
   border-color: transparent;
   background: transparent;
-  min-width: 45px;
-  padding: 7px 8px;
-  min-height: 43px;
-  gap: 5px;
-  flex-direction: column;
+  min-width: 28px;
+  padding: 4px 5px;
+  min-height: 28px;
+  gap: 0;
+  flex-direction: row;
 }
-.bim-view-options button > span {
+.camera-tools > button > span,
+.advanced-tools > button > span {
+  display: none;
+}
+.camera-tools > button svg,
+.advanced-tools > button svg {
+  width: 14px;
+  height: 14px;
+}
+.bim-view-options .advanced-tools > button:first-child {
   font-size: 9px;
   white-space: nowrap;
+  min-width: 0;
+  padding: 4px;
 }
 .bim-view-options button.active {
   background: var(--accent-soft);
@@ -2150,24 +2162,23 @@ details summary::marker {
     width: 13px;
   }
   .bim-view-options {
-    bottom: 22px;
+    bottom: 12px;
     max-width: calc(100% - 20px);
-    padding: 4px;
+    padding: 2px;
   }
   .bim-view-options button {
-    min-width: 40px;
-    min-height: 44px;
-    padding: 6px 5px;
+    min-width: 32px;
+    min-height: 36px;
+    padding: 4px;
   }
   .bim-view-options button span {
     display: none;
   }
   .bim-view-options button:last-child span {
-    display: block;
-    font-size: 8px;
+    display: none;
   }
   .camera-tools {
-    padding-right: 4px;
+    padding-right: 3px;
     margin-right: 3px;
   }
   .tool-popover {
@@ -2282,8 +2293,8 @@ details summary::marker {
     margin-left: auto;
   }
   .bim-view-options button {
-    min-width: 32px;
-    padding: 5px 3px;
+    min-width: 28px;
+    padding: 4px 3px;
   }
   .legend {
     gap: 7px;

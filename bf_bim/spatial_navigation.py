@@ -198,7 +198,10 @@ def build_spatial(model, overrides=None):
                     cad_ids=e['source'].get('cad_ids', [])),
                 evidence=evidence(e), review=None, reasons=['Door swing/host-depth geometry is a candidate, not a reviewed passage',
                     'Both spaces, effective clear width, threshold and opening condition require review']))
-    lifts = [e for e in model['elements'] if e['type'] == 'elevator' and not e.get('excluded')]
+    # A shaft PIT is a structural termination, not a serviced landing. Its
+    # component role is already covered by the model dependency fingerprint.
+    lifts = [e for e in model['elements'] if e['type'] == 'elevator' and not e.get('excluded')
+             and not any(c.get('role')=='assumed_pit_base' for c in e.get('components',[]))]
     for a in lifts:
         higher = [b for b in lifts if next(f['elevation'] for f in model['floors'] if f['id'] == b['floor_id']) >
                   next(f['elevation'] for f in model['floors'] if f['id'] == a['floor_id']) and shape(a).intersection(shape(b)).area > .1]
@@ -276,7 +279,10 @@ def navmesh(data, radius=.6):
                     and (b['kind'] == 'void' or b['kind'] == 'elevator' and b['element_id'] == s['element_id'])):
                 blocked = blocked.difference(source)
             obstacles.append(blocked)
-        area = source.difference(unary_union(obstacles)).buffer(-radius)
+        # Polygonal round-corner offsets can differ after inserting obstacle
+        # vertices. Intersect with the original inward offset so new tessellation
+        # never protrudes outside the source space's own clearance boundary.
+        area = source.difference(unary_union(obstacles)).buffer(-radius).intersection(source.buffer(-radius))
         for poly in polygons(area):
             triangles = constrained_delaunay_triangles(poly)
             result.append(dict(space_id=s['id'], status='review_geometry_only', space_review_status=s['status'], clearance_radius_m=radius,

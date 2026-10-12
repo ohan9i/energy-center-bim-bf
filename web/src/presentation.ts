@@ -14,6 +14,7 @@ export function modelLabel(model: Model): string {
 }
 
 const uncertaintyNames: Record<string, string> = {
+  'Assumed completion requires drawing or designer review.': '추정 치수와 배치의 도면 또는 설계자 확인',
   native_beam_outline: '보의 원본 외곽', individual_SL_level: '구간별 구조 기준 높이',
   beam_member_assignment: '보 부호와 부재의 연결', local_joint_detail: '접합 상세', reinforcement: '배근 상세',
   member_identity: '부재 식별', material: '재료', member_bottom: '부재 하단', member_top: '부재 상단',

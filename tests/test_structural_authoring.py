@@ -47,6 +47,13 @@ def test_wall_head_cut_removes_only_intersection_volume_preserving_plan():
     assert audit[0]['removed_duplicate_volume_m3']==pytest.approx(before-after)
     assert w['polygon']==poly
 
+def test_nearly_coincident_beam_levels_do_not_emit_zero_volume_wall_parts():
+    poly=[(0,0),(8,0),(8,.2),(0,.2)]
+    wall={'id':'w','type':'wall','floor_id':'lower','polygon':poly,'components':[{'polygon':poly,'holes':[],'height':4.2,'z_offset':0,'role':'wall','source':{}}],'source':{}}
+    beams=[{'id':str(i),'floor_id':'upper','components':[{'polygon':[(i,-.2),(i+2,-.2),(i+2,.4),(i,.4)],'holes':[],'height':.5,'z_offset':-.7+i*1e-15}]} for i in range(2)]
+    trim_wall_heads([wall],beams,{'lower':{'elevation':0},'upper':{'elevation':4.2}})
+    assert all(c['height']>=1e-7 for c in wall['components'])
+
 def test_generated_structural_members_keep_source_and_height_limits():
     import json
     from pathlib import Path
@@ -55,7 +62,7 @@ def test_generated_structural_members_keep_source_and_height_limits():
     if not p.exists():pytest.skip('Generate artifact first')
     model=json.loads(p.read_text(encoding='utf8'))
     if model['revision']<8:pytest.skip('Structural rebuild not generated')
-    beams=[e for e in model['elements'] if e['type']=='beam']
+    beams=[e for e in model['elements'] if e['type']=='beam' and not e['source'].get('user_assumed_completion')]
     assert beams and {e['floor_id'] for e in beams}=={'f1','f2','f3','f4','roof'}
     elements={e['id']:e for e in model['elements']}
     for e in beams:
@@ -72,4 +79,5 @@ def test_generated_structural_members_keep_source_and_height_limits():
     for e in model['elements']:
         if e['floor_id'] in {'f2','f3','f4','roof'} and e['type'] in {'floor','roof'} and e['components']:
             assert all(c['height']==pytest.approx(.15) for c in e['components'] if c['role']=='structural_slab')
-            assert not e['source']['structural_slab_evidence']['boundary_verified']
+            if not e['source'].get('user_assumed_completion'):
+                assert not e['source']['structural_slab_evidence']['boundary_verified']

@@ -3,6 +3,16 @@ import {raw,inside,edges,pointSegment,bounds} from './geometry';
 import {planArea} from './bimGeometry';
 
 // Viewpoint selection only. This does not add BF links or certify clearances.
+export function interiorCeilingFloor(model:Model, floor:string):string|null {
+  if(floor==='all')return null;
+  const base=model.floors.find(f=>f.id===floor)?.elevation;
+  if(base===undefined)return null;
+  return model.floors.filter(f=>f.elevation>base && model.elements.some(e=>
+    e.floor_id===f.id&&!e.excluded&&!e.source.unresolved_plan_only&&
+    ['floor','roof'].includes(e.type)&&e.components.some(c=>c.height!==null)))
+    .sort((a,b)=>a.elevation-b.elevation)[0]?.id??null;
+}
+
 export function interiorView(model:Model, floor:string, selected='') {
   const fid=floor==='all'?(model.elements.find(e=>e.id===selected)?.floor_id??model.floors.find(f=>f.id==='f1')?.id??model.floors[0].id):floor;
   const rooms=model.elements.filter(e=>e.floor_id===fid&&!e.excluded&&['space','corridor'].includes(e.type)&&e.source.space_usage!=='outdoor');
