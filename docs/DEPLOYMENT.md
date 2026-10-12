@@ -6,6 +6,8 @@
 
 2026-10-12 문구 정리에서 상단 이름·브라우저 제목·메타 설명을 변경했고, 건물·객체·층 이름의 중간점은 표시할 때만 제거했습니다. 상세 검토 자료는 필요할 때 펼쳐 보고, 주요 미확정 항목은 한국어로 표시합니다. 표시한 이름으로 객체를 검색할 수 있으며 원본 이름을 붙여 넣어도 동일하게 찾습니다. 웹 테스트 66개, TypeScript/Vite 빌드와 하위 경로 검사, 기존 기능 19개 화면과 문구·도움말·공간 검토·390/320px 모바일 화면 검사를 통과했습니다. revision 8 모델 JSON과 두 IFC는 그대로 유지합니다.
 
+문구 변경 커밋 `ffae2dd`의 [Pages 배포 38197098302](https://github.com/ohan9i/energy-center-bim-bf/actions/runs/38197098302)이 성공했습니다. 공개 사이트에서도 새 제목, 중간점 제거, 객체 이름 검색, 공간 검토, 390/320px 모바일 화면을 확인했고 실행·HTTP 오류는 0건이었습니다. 공개 JSON과 두 IFC의 SHA-256은 기존 revision 8과 일치합니다. 기록은 `cad_output/precision-rebuild/coordination-v2/branding-deployment.json`, `browser-current/branding-results.json`에 보존합니다.
+
 소스 저장소: https://github.com/ohan9i/energy-center-bim-bf
 
 ## 홈페이지에서 할 수 있는 일
