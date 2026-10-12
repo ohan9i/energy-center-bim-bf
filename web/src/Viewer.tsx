@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { displayText, modelLabel } from './presentation';
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -1022,7 +1023,7 @@ export default function Viewer({
           </button>
           <button
             aria-label={walking ? "실내 시점 종료" : "실내 시점"}
-            title="실내 자유 시점 · WASD 이동"
+            title="실내 자유 시점, WASD 이동"
             disabled={plan || fallback}
             aria-pressed={walking}
             className={walking ? "active" : ""}
@@ -1073,8 +1074,8 @@ export default function Viewer({
             <span>표시 설정</span>
           </button>
           <button
-            aria-label="단면 · 층 분리"
-            title="단면 · 층 분리"
+            aria-label="단면과 층 분리"
+            title="단면과 층 분리"
             aria-expanded={tool === "section"}
             aria-controls="section-options"
             className={
@@ -1085,7 +1086,7 @@ export default function Viewer({
             onClick={() => setTool(tool === "section" ? null : "section")}
           >
             <Scissors size={16} />
-            <span>단면 · 층 분리</span>
+            <span>단면과 층 분리</span>
           </button>
         </div>
         {tool === "display" && (
@@ -1120,7 +1121,7 @@ export default function Viewer({
               />
             </label>
             <label>
-              <span>외벽 · 지붕 투명화</span>
+              <span>외벽, 지붕 투명화</span>
               <input
                 type="checkbox"
                 checked={transparentEnvelope}
@@ -1137,7 +1138,7 @@ export default function Viewer({
             </label>
             <p>
               전체 외관의 지반은 1층 바닥 기준 가정면입니다. 지하층은 지반을
-              끄거나 층별·단면 보기로 확인하세요.
+              끄거나 층별, 단면 보기로 확인하세요.
             </p>
             <label>
               <span>뷰 방향</span>
@@ -1204,7 +1205,7 @@ export default function Viewer({
               onChange={(e) => setDoorOpen(Number(e.target.value))}
             />
             <p>
-              회전호 방향을 따르는 검토 표시입니다. 닫힘 방향·통행 유효폭은
+              회전호 방향을 따르는 검토 표시입니다. 닫힘 방향, 통행 유효폭은
               미확정이며, 원본 형상과 BF 계산은 변경하지 않습니다.
             </p>
           </div>
@@ -1213,7 +1214,7 @@ export default function Viewer({
           <div className="tool-popover" id="section-options">
             <h3>
               <Layers size={16} />
-              단면 · 층 분리
+              단면과 층 분리
             </h3>
             <label>
               <span>층 분리 간격</span>
@@ -1265,13 +1266,13 @@ export default function Viewer({
                 setCut(50);
               }}
             >
-              단면 · 분리 초기화
+              단면과 분리 초기화
             </button>
           </div>
         )}
       </div>
       <div className="orientation-widget" aria-label="카메라 방향 전환">
-        <span>VIEW</span>
+        <span>시점</span>
         <div>
           <button
             aria-label="사선 보기"
@@ -1314,7 +1315,7 @@ export default function Viewer({
       {hiddenIds.length > 0 && (
         <button className="restore-objects" onClick={() => setHiddenIds([])}>
           <Eye size={14} />
-          {hiddenIds.length}개 숨김 · 모두 표시
+          {hiddenIds.length}개 숨김, 모두 표시
         </button>
       )}
       {evidenceMode === "verified" && model.provenance.verified_solids === 0 && <div className="viewer-assumption-note">
@@ -1324,19 +1325,19 @@ export default function Viewer({
         <details className="viewer-caution">
           <summary>
             <TriangleAlert size={14} />
-            {model.provenance.coordination_draft ? `통합 3D Coordination Draft · 검증 입체 ${Number(model.provenance.verified_solids ?? 0)}개` : model.provenance.precision_rebuild ? `도면 평면 + 미확정 3D · 검증 입체 ${Number(model.provenance.verified_solids ?? 0)}개` : "임시 치수 포함 · 도면 검토 필요"}
+            도면 검토용 모델
           </summary>
           <p>
-            {model.provenance.coordination_draft ? "CAD 위치와 검토용 입체 조립체를 표시합니다. 높이·두께·재료 가정은 객체 속성에 기록됩니다. Draft IFC와 Verified IFC를 구분해 저장하세요." : model.provenance.precision_rebuild
+            {model.provenance.coordination_draft ? `도면 대조가 필요한 형상이 포함되어 있습니다. 높이와 두께의 근거는 객체를 선택해 확인하세요. 설계 검증 조건을 충족한 입체는 ${Number(model.provenance.verified_solids ?? 0)}개입니다. 검토 IFC에는 미확정 형상도 포함됩니다.` : model.provenance.precision_rebuild
               ? "원본 평면 경계와 미확정 층간 외피를 표시합니다. 1 mm 벽면 표시는 실제 벽 두께가 아닙니다. 검증된 입체는 0개이며, 미확정 외피는 IFC에서 제외됩니다."
-              : "슬래브·마감·참·문틀·창틀·샤프트는 검토 후보입니다. JSON/IFC에도 미확정 근거를 보존합니다. 선택 객체에서 치수와 근거를 확인하세요."}
+              : "슬래브, 마감, 참, 문틀, 창틀, 샤프트는 검토 후보입니다. JSON/IFC에도 미확정 근거를 보존합니다. 선택 객체에서 치수와 근거를 확인하세요."}
           </p>
-          {evidenceMode === "highlight" && <p>초록: 근거 검증 완료 · 주황: 임시 치수 또는 미배정 · 빨강: 미해결. 도면 기반 형상 모드에서는 입체로 만들지 못한 원본 후보도 확인할 수 있습니다.</p>}
+          {evidenceMode === "highlight" && <p>초록: 근거 검증 완료, 주황: 임시 치수 또는 미배정, 빨강: 미해결. 도면 기반 형상 모드에서는 입체로 만들지 못한 원본 후보도 확인할 수 있습니다.</p>}
         </details>
       )}
       {walking && (
         <p className="walk-help">
-          화면 클릭 후 WASD: 전후좌우 · Q/E: 높이 · 드래그: 둘러보기. 자유
+          화면 클릭 후 WASD: 전후좌우, Q/E: 높이, 드래그: 둘러보기. 자유
           시점이며 통행 가능 여부를 판정하지 않습니다.
         </p>
       )}
@@ -1350,19 +1351,19 @@ export default function Viewer({
                 .find((e) => e.id === selected)
                 ?.components.find((c) => c.id === pickedPart)?.role
             }{" "}
-            · {pickedPart.split("/component/")[1]} · 치수 검토 후보
+, {pickedPart.split("/component/")[1]}, 치수 검토 후보
           </output>
         )}
       <div
         className="viewer"
         ref={host}
-        aria-label={`${model.name} ${plan ? "평면" : "3D"} 모델`}
+        aria-label={`${modelLabel(model)} ${plan ? "평면" : "3D"} 모델`}
       >
         {fallback && (
           <div className="fallback">
             <p>
               WebGL을 사용할 수 없어 평면도로 표시합니다. 전체 층에서는{" "}
-              {model.floors.find((f) => f.id === fs)?.name}을 표시합니다.
+              {displayText(model.floors.find((f) => f.id === fs)?.name)}을 표시합니다.
             </p>
             <svg
               viewBox={`${b.min[0] - 1} ${b.min[1] - 1} ${b.max[0] - b.min[0] + 2} ${b.max[1] - b.min[1] + 2}`}

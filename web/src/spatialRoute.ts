@@ -22,7 +22,7 @@ export function buildSpatialNetwork(m:Model,input:Spatial,p:Profile,grid=.25):Sp
  const net:SpatialNetwork={nodes:[],edges:[],space_edges:[],checks:new Map(),spaceChecks:new Map(),excluded:[]};
  for(const r of [...s.spaces,...s.portals,...s.vertical])if(!approved(r,token))net.excluded.push({id:r.id,status:'unknown',reasons:r.reasons.length?r.reasons:['공간/연결 검토 기록 미확정']});
  for(const r of s.spaces.filter(x=>approved(x,token)&&!spaceMap.has(x.id)))net.excluded.push({id:r.id,status:'blocked',reasons:['바닥 단차 또는 경사가 현재 이동 조건을 초과합니다.']});
- for(const r of s.portals.filter(x=>approved(x,token)&&!candidates.includes(x)))net.excluded.push({id:r.id,status:'blocked',reasons:['문 폭·단차·개폐 또는 연결 공간 조건 불충족']});
+ for(const r of s.portals.filter(x=>approved(x,token)&&!candidates.includes(x)))net.excluded.push({id:r.id,status:'blocked',reasons:['문 폭, 단차, 개폐 또는 연결 공간 조건 불충족']});
  const rawBlockers=physicalBlockers(m,s);
  const radius=p.body_width/2, corridorRadius=Math.max(radius,p.min_corridor_width/2);
  const safe=(a:XY,b:XY,r:Multi,obs:Multi,envelope:number)=>contained(a,b,r,envelope)&&!obs.some(o=>touches(a,b,o,envelope));
@@ -64,7 +64,7 @@ export function buildSpatialNetwork(m:Model,input:Spatial,p:Profile,grid=.25):Sp
    consistentWidth=Number.isFinite(span)&&g.properties.clear_width!<=span+1e-7;
   }
   if(consistentWidth&&safe(...g.points,r,floorBlockers(g.floor_id,[g]),gateRadius)&&contained(...g.points,g.region,gateRadius))return true;
-  net.excluded.push({id:g.id,status:'blocked',reasons:['문 접근 구간이 벽·장애물 또는 기하학적 유효폭과 충돌합니다.']});return false;
+  net.excluded.push({id:g.id,status:'blocked',reasons:['문 접근 구간이 벽, 장애물 또는 기하학적 유효폭과 충돌합니다.']});return false;
  });
  const blockers=new Map(m.floors.map(f=>[f.id,floorBlockers(f.id,gates)]));
  const add=(space:Space,point:XY)=>{const id=net.nodes.length;net.nodes.push({floor:space.floor_id,space:space.id,point});net.edges.push([]);return id;};
@@ -102,7 +102,7 @@ export function buildSpatialNetwork(m:Model,input:Spatial,p:Profile,grid=.25):Sp
   // Both the user's envelope and the claimed clear width are checked against geometry.
   const gateRadius=Math.max(radius,p.min_door_width/2);
   if(!safe(...g.points,r,blockers.get(g.floor_id)!,gateRadius)||!contained(...g.points,g.region,gateRadius)){
-   net.excluded.push({id:g.id,status:'blocked',reasons:['문 접근 구간이 벽·장애물 또는 기하학적 유효폭과 충돌합니다.']});continue;
+   net.excluded.push({id:g.id,status:'blocked',reasons:['문 접근 구간이 벽, 장애물 또는 기하학적 유효폭과 충돌합니다.']});continue;
   }
   const a=anchor(aSpace,g.points[0]),b=anchor(bSpace,g.points[1]);
   if(a!==undefined&&b!==undefined){connect(a,b,dist(...g.points),dist(...g.points),g.id);net.space_edges.push({from:aSpace.id,to:bSpace.id,via:g.id,kind:g.kind});}
@@ -111,7 +111,7 @@ export function buildSpatialNetwork(m:Model,input:Spatial,p:Profile,grid=.25):Sp
  for(const v of s.vertical){
   if(!approved(v,token))continue;
   if(!condition(v.properties,p)||v.kind==='stair'&&!p.allow_stairs||v.kind==='ramp'&&(v.properties.slope===null||v.properties.slope>p.max_slope||v.properties.clear_width!<p.min_corridor_width)){
-   net.excluded.push({id:v.id,status:'blocked',reasons:['층간 시설의 폭·단차·운행·경사 또는 계단 허용 조건 불충족']});continue;
+   net.excluded.push({id:v.id,status:'blocked',reasons:['층간 시설의 폭, 단차, 운행, 경사 또는 계단 허용 조건 불충족']});continue;
   }
   const [aSpace,bSpace]=v.space_ids.map(id=>spaceMap.get(id));if(!aSpace||!bSpace){net.excluded.push({id:v.id,status:'blocked',reasons:['층간 시설에 연결된 공간의 바닥 통행 조건이 충족되지 않습니다.']});continue;}
   // Elevator nodes are car-floor nodes reached exclusively through reviewed landing doors.
@@ -147,13 +147,13 @@ export function findSpatialRoute(m:Model,startId:string,endId:string,p:Profile,g
  profileSchema.parse(p);
  const start=m.places.find(x=>x.id===startId),end=m.places.find(x=>x.id===endId);if(!start||!end)throw Error('출발지와 목적지를 지정하세요.');
  const result:RouteResult={status:'no_path',points:[],distance:0,seconds:0,floors:[],uses_elevator:false,excluded:[],instructions:[],
- assumptions:'확인된 공간·문·층간 시설과 사용자 이동 조건에 의한 기하학 경로 검토입니다. 공식 BF 인증 판정이 아닙니다.',revision:m.revision,node_count:0};
+ assumptions:'확인된 공간, 문, 층간 시설과 사용자 이동 조건에 의한 기하학 경로 검토입니다. 공식 BF 인증 판정이 아닙니다.',revision:m.revision,node_count:0};
  let net:SpatialNetwork;
  try {net=buildSpatialNetwork(m,m.provenance.bf_spatial as Spatial,p,grid);}catch(e){result.instructions=[e instanceof Error?e.message:String(e)];return result;}
  result.node_count=net.nodes.length;result.excluded=net.excluded;
  const find=(place:typeof start)=>net.nodes.findIndex(n=>n.floor===place.floor_id&&dist(n.point,place.point)<1e-7);
  const a=find(start),b=find(end);
- if(a<0||b<0){result.instructions=['출발지 또는 목적지의 공간 경계·바닥 통행 조건이 미확정이거나 이동 여유폭이 부족합니다. 검증 경로 생성을 차단했습니다.'];return result;}
+ if(a<0||b<0){result.instructions=['출발지 또는 목적지의 공간 경계, 바닥 통행 조건이 미확정이거나 이동 여유폭이 부족합니다. 검증 경로 생성을 차단했습니다.'];return result;}
  // Binary heap Dijkstra also handles stairs penalties and elevator waits without a misleading heuristic.
  const heap:{id:number;cost:number}[]=[];
  const push=(item:{id:number;cost:number})=>{heap.push(item);let i=heap.length-1;while(i>0){const j=(i-1)>>1;if(heap[j].cost<=item.cost)break;heap[i]=heap[j];i=j;}heap[i]=item;};
@@ -162,7 +162,7 @@ export function findSpatialRoute(m:Model,startId:string,endId:string,p:Profile,g
  let found=false;while(heap.length){const {id:u,cost}=pop();if(cost>(costs.get(u)??Infinity))continue;if(u===b){found=true;break;}
   for(const edge of net.edges[u]){const next=cost+edge.cost;if(next<(costs.get(edge.to)??Infinity)-1e-8){costs.set(edge.to,next);prev.set(edge.to,{node:u,edge});push({id:edge.to,cost:next});}}
  }
- if(!found){result.instructions=['확인된 출입구·개방 통로·승강장 문을 통한 공간 연결이 없습니다. 벽 또는 미확정 구간을 통과하는 경로는 생성하지 않습니다.'];return result;}
+ if(!found){result.instructions=['확인된 출입구, 개방 통로, 승강장 문을 통한 공간 연결이 없습니다. 벽 또는 미확정 구간을 통과하는 경로는 생성하지 않습니다.'];return result;}
  const order=[b],vias:string[]=[];let cursor=b;
  while(cursor!==a){const item=prev.get(cursor)!;result.distance+=item.edge.distance;result.seconds+=item.edge.wait;if(item.edge.via)vias.push(item.edge.via);cursor=item.node;order.unshift(cursor);}
  result.status='found';result.points=order.map((id,i)=>({floor:net.nodes[id].floor,point:net.nodes[id].point,via:i?prev.get(id)?.edge.via:undefined}));

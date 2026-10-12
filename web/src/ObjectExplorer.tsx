@@ -97,7 +97,7 @@ export default function ObjectExplorer({
               <details className="floor-group" key={f.id} open>
                 <summary>
                   <Layers size={15} />
-                  {f.name}
+                  {displayText(f.name)}
                   <span>{group.length}</span>
                 </summary>
                 {kinds.map((k) => {
@@ -126,13 +126,13 @@ export default function ObjectExplorer({
                           <button
                             className={`object-row ${e.id === selected ? "selected" : ""}`}
                             aria-pressed={e.id === selected}
-                            title={`${e.name} · ${e.id}`}
+                            title={`${displayText(e.name)}, ${e.id}`}
                             key={e.id}
                             onClick={() => onSelect(e.id)}
                           >
                             <span className={`object-dot ${e.type}`} />
                             <span>
-                              <strong>{e.name}</strong>
+                              <strong>{displayText(e.name)}</strong>
                               <small>
                                 {e.excluded ? (
                                   "제외됨"
@@ -159,7 +159,7 @@ export default function ObjectExplorer({
                               setLimits((v) => ({ ...v, [key]: limit + 100 }))
                             }
                           >
-                            {labels[k]} 더 보기 · {limit} / {objects.length}
+                            {labels[k]} 더 보기, {limit} / {objects.length}
                           </button>
                         )}
                       </details>
@@ -174,7 +174,7 @@ export default function ObjectExplorer({
           <div className="empty-state">
             <Search size={24} />
             <strong>검색 결과가 없습니다</strong>
-            <p>검색어 또는 층·종류 필터를 변경하세요.</p>
+            <p>검색어 또는 층, 종류 필터를 변경하세요.</p>
             <button
               onClick={() => {
                 onQuery("");
@@ -189,3 +189,4 @@ export default function ObjectExplorer({
     </>
   );
 }
+import { displayText } from './presentation';

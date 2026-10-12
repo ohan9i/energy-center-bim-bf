@@ -54,7 +54,7 @@ describe('architectural BIM geometry',()=>{
  it('renders architectural controls and disclosure for unknown heights',()=>{
   const m=model(),profile=JSON.parse(readFileSync(new URL('../public/rules.json',import.meta.url),'utf8')).profiles.wheelchair;
   const html=renderToStaticMarkup(createElement(Viewer,{model:m,floor:'f1',plan:false,selected:'',route:null,profile,onSelect:()=>{}}));
-  for(const label of ['전체 맞춤','선택 확대','실내 시점','표시 설정','단면 · 층 분리','JSON/IFC에도 미확정 근거를 보존합니다'])expect(html).toContain(label);
+  for(const label of ['전체 맞춤','선택 확대','실내 시점','표시 설정','단면과 층 분리','JSON/IFC에도 미확정 근거를 보존합니다'])expect(html).toContain(label);
   expect(html).toContain('aria-expanded="false"');
   expect(html).not.toContain('id="display-options"');
   expect(html).not.toContain('id="section-options"');

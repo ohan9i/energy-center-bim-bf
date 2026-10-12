@@ -7,7 +7,7 @@ export function evaluate(e:Element,p:Profile):Evaluation {
  const reject=(s:string)=>{blocked=true;reasons.push(s);};
  const missing=(s:string)=>{unknown=true;reasons.push(s);};
  if(e.excluded)return {id:e.id,status:'blocked',reasons:['설계자가 제외한 요소']};
- if(!e.verified)missing('기하학·통행 속성 미확인');
+ if(!e.verified)missing('기하학, 통행 속성 미확인');
  const width=(limit:number)=>{const w=e.properties.clear_width;if(w===null)missing('유효폭 미입력');else if(w<Math.max(limit,p.body_width))reject(`유효폭 ${w} m < 필요 ${Math.max(limit,p.body_width)} m`);};
  const step=()=>{const s=e.properties.step;if(s===null)missing('단차 미입력');else if(s>p.max_step)reject(`단차 ${s} m > 허용 ${p.max_step} m`);};
  if(e.type==='door'){width(p.min_door_width);step();}

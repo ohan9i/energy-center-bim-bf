@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SITE_NAME, displayText, modelLabel } from './presentation';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -262,7 +263,7 @@ export default function App() {
               retained = {
                 ...old,
                 id: old.id + "-previous-" + i,
-                name: old.name + " · 이전 저장본 " + (i + 1),
+                name: old.name + ", 이전 저장본 " + (i + 1),
               };
             restored.push(retained);
           } catch {}
@@ -519,9 +520,9 @@ export default function App() {
       (e) =>
         (floor === "all" || e.floor_id === floor) &&
         (category === "all" || e.type === category) &&
-        `${e.name} ${e.id} ${labels[e.type]}`
+        displayText(`${e.name} ${e.id} ${labels[e.type]}`)
           .toLowerCase()
-          .includes(query.toLowerCase()),
+          .includes(displayText(query).toLowerCase()),
     );
   const designer = mode === "designer";
   const counts = {
@@ -558,10 +559,10 @@ export default function App() {
           if (window.innerWidth <= 1100) setLeftOpen(false);
         }}
       >
-        속성 · 경로 설정으로 바로가기
+        속성, 경로 설정으로 바로가기
       </a>
       <header className="header">
-        <a className="brand" href="#" aria-label="공간이음 홈">
+        <a className="brand" href="#" aria-label={`${SITE_NAME} 홈`}>
           <span className="brand-icon">
             <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <path
@@ -577,13 +578,13 @@ export default function App() {
             </svg>
           </span>
           <span>
-            공간이음<small>BIM / BF WORKSPACE</small>
+            {SITE_NAME}<small>건축 모델과 이동 경로 검토</small>
           </span>
         </a>
         <div className="header-divider" />
         <div className="project-identity">
           <Building2 size={16} />
-          <h1 title={model.name}>{model.name}</h1>
+          <h1 title={modelLabel(model)}>{modelLabel(model)}</h1>
           <span className="revision">
             R{String(model.revision).padStart(2, "0")}
           </span>
@@ -665,13 +666,13 @@ export default function App() {
               <button
                 disabled={(!api && !model.provenance.precision_rebuild) || busy}
                 onClick={() => exportIFC()}
-                title={model.provenance.precision_rebuild ? `근거 검증 부재 ${Number(model.provenance.verified_solids ?? 0)}개 · 미확정 부재 제외` : "IFC 생성에는 로컬 Python 서버가 필요합니다."}
+                title={model.provenance.precision_rebuild ? `근거 검증 부재 ${Number(model.provenance.verified_solids ?? 0)}개, 미확정 부재 제외` : "IFC 생성에는 로컬 Python 서버가 필요합니다."}
               >
                 <Download size={15} />
-                <span>IFC</span>
+                <span>검증 IFC</span>
               </button>
               {Boolean(model.provenance.coordination_draft) && <button disabled={busy} onClick={() => exportIFC(true)} title="미확정 입체와 가정을 포함한 검토용 IFC">
-                <Download size={15} /><span>Draft IFC</span>
+                <Download size={15} /><span>검토 IFC</span>
               </button>}
             </div>
           )}
@@ -688,12 +689,12 @@ export default function App() {
           <button
             className={rightOpen ? "active panel-toggle" : "panel-toggle"}
             aria-controls="inspector-panel"
-            aria-label={bimWorkspace ? "속성 · 근거" : "경로 설정"}
+            aria-label={bimWorkspace ? "속성과 근거" : "경로 설정"}
             aria-expanded={rightOpen}
             onClick={() => togglePanel("right")}
           >
             <PanelRight size={16} />
-            <span>{bimWorkspace ? "속성 · 근거" : "경로 설정"}</span>
+            <span>{bimWorkspace ? "속성과 근거" : "경로 설정"}</span>
           </button>
         </div>
       </nav>
@@ -715,22 +716,22 @@ export default function App() {
                 <X size={16} />
               </button>
             </div>
-            <p>모델을 중심으로 건축 요소와 이동 경로를 검토하세요.</p>
+            <p>부재를 선택하면 치수와 도면 근거를 볼 수 있습니다.</p>
             <dl>
               <dt>회전</dt>
-              <dd>왼쪽 버튼으로 드래그 · 한 손가락 이동</dd>
+              <dd>왼쪽 버튼으로 드래그, 한 손가락 이동</dd>
               <dt>이동</dt>
-              <dd>오른쪽 버튼으로 드래그 · 두 손가락 이동</dd>
+              <dd>오른쪽 버튼으로 드래그, 두 손가락 이동</dd>
               <dt>확대 / 축소</dt>
-              <dd>마우스 휠 · 두 손가락 벌리기</dd>
+              <dd>마우스 휠, 두 손가락 벌리기</dd>
               <dt>객체 검토</dt>
               <dd>모델이나 객체 목록에서 요소 선택</dd>
               <dt>단면 보기</dt>
-              <dd>뷰어 하단의 단면 · 층 분리 도구</dd>
+              <dd>뷰어 하단의 단면과 층 분리 도구</dd>
               <dt>경로 탐색</dt>
-              <dd>BF 경로 탐색 → 출발지·목적지 → 경로 탐색</dd>
+              <dd>BF 경로 탐색 → 출발지, 목적지 → 경로 탐색</dd>
             </dl>
-            <small>실내 시점에서는 WASD 이동 · Q/E 높이 조절</small>
+            <small>실내 시점에서는 WASD 이동, Q/E 높이 조절</small>
           </section>
         </>
       )}
@@ -762,7 +763,7 @@ export default function App() {
           inert={!leftOpen}
         >
           <div className="drawer-heading">
-            <strong>객체 탐색 · 검토</strong>
+            <strong>객체 탐색, 검토</strong>
             <button
               aria-label="객체 패널 닫기"
               onClick={() => setLeftOpen(false)}
@@ -771,7 +772,7 @@ export default function App() {
             </button>
           </div>
           <section className="explorer-project">
-            <div className="section-label">PROJECT LIBRARY</div>
+            <div className="section-label">검토 건물</div>
             <label className="project-select">
               <Building2 size={17} />
               <select
@@ -784,16 +785,16 @@ export default function App() {
               >
                 {library.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name}
+                    {modelLabel(m)}
                   </option>
                 ))}
               </select>
             </label>
             <div className="project-meta">
               <span>
-                {model.is_example ? "예제 · 테스트용" : "CAD · 건축 모델"}
+                {model.is_example ? "테스트용 모델" : "건축도면 기반"}
               </span>
-              <span>{model.floors.length} LEVELS</span>
+              <span>{model.floors.length}개 층</span>
             </div>
           </section>
           <section className="level-navigation" aria-label="층별 탐색">
@@ -813,12 +814,12 @@ export default function App() {
               {[...model.floors].reverse().map((f) => (
                 <button
                   key={f.id}
-                  title={`${f.name} · 기준 높이 ${f.elevation.toFixed(2)} m`}
+                  title={`${displayText(f.name)}, 기준 높이 ${f.elevation.toFixed(2)} m`}
                   aria-pressed={floor === f.id}
                   className={floor === f.id ? "active" : ""}
                   onClick={() => setFloor(f.id)}
                 >
-                  <span>{f.name}</span>
+                  <span>{displayText(f.name)}</span>
                   <small>{f.elevation.toFixed(2)} m</small>
                 </button>
               ))}
@@ -897,7 +898,7 @@ export default function App() {
                       openEditor("model");
                     }}
                   >
-                    층 · 공간 · 연결 편집
+                    층, 공간, 연결 편집
                   </button>
                 </div>
               )}{" "}
@@ -931,11 +932,11 @@ export default function App() {
                     key={r.id}
                     onClick={() => selectObject(r.id)}
                   >
-                    <strong>{r.e.name}</strong>
+                    <strong>{displayText(r.e.name)}</strong>
                     <span className={"status " + r.status}>
                       {statusLabel[r.status]}
                     </span>
-                    <small>{r.reasons.join(" · ")}</small>
+                    <small>{displayText(r.reasons.join(", "))}</small>
                   </button>
                 ))}
               </div>
@@ -946,7 +947,7 @@ export default function App() {
                 <a href={rules.reference_url} target="_blank" rel="noreferrer">
                   BF 해설서 참고 자료 <ArrowUpRight size={12} />
                 </a>
-                <p>해설서의 개별 수치·적용 조항 검증은 완료되지 않았습니다.</p>
+                <p>해설서의 개별 수치, 적용 조항 검증은 완료되지 않았습니다.</p>
                 <button
                   onClick={() =>
                     download(
@@ -987,7 +988,7 @@ export default function App() {
               </label>
               <p className="muted">
                 {api
-                  ? `로컬 처리 서버 연결됨 · ODA ${oda ? "확인됨" : "미설치: DXF 사용 가능"}`
+                  ? `로컬 처리 서버 연결됨, ODA ${oda ? "확인됨" : "미설치: DXF 사용 가능"}`
                   : "CAD 분석과 IFC 출력에는 로컬 Python 서버가 필요합니다."}
               </p>
               <label className="file-button">
@@ -1006,7 +1007,7 @@ export default function App() {
                 <>
                   <h3>레이어 대응</h3>
                   <p className="muted">
-                    {cad.entity_count.toLocaleString()}개 객체 ·{" "}
+                    {cad.entity_count.toLocaleString()}개 객체, {" "}
                     {cad.units.name}
                   </p>
                   <div className="layer-list">
@@ -1102,7 +1103,7 @@ export default function App() {
               <span>
                 {floor === "all"
                   ? "전체 건물"
-                  : model.floors.find((f) => f.id === floor)?.name}
+                  : displayText(model.floors.find((f) => f.id === floor)?.name)}
               </span>
             </div>
             <div className="view-buttons">
@@ -1136,7 +1137,7 @@ export default function App() {
                 <option value="all">전체 층</option>
                 {model.floors.map((f) => (
                   <option key={f.id} value={f.id}>
-                    {f.name}
+                    {displayText(f.name)}
                   </option>
                 ))}
               </select>
@@ -1155,8 +1156,8 @@ export default function App() {
             <div className="model-hint">
               <Move size={13} />
               {plan
-                ? "드래그: 이동 · 스크롤: 확대/축소"
-                : "드래그: 회전 · 우클릭: 이동 · 스크롤: 확대/축소"}
+                ? "드래그: 이동, 스크롤: 확대/축소"
+                : "드래그: 회전, 우클릭: 이동, 스크롤: 확대/축소"}
             </div>
             <div className="legend">
               {bimWorkspace ? (
@@ -1204,13 +1205,13 @@ export default function App() {
             </div>
             <div className="model-caption">
               <span>
-                {model.is_example ? "SYNTHETIC MODEL" : "CAD-DERIVED MODEL"} /
-                REV {model.revision.toString().padStart(2, "0")}
+                {model.is_example ? "테스트용 모델" : "도면 기반 모델"} /
+                버전 {model.revision.toString().padStart(2, "0")}
               </span>
               <span>
                 {bimWorkspace
-                  ? "CAD 출처 · 재구성 후보 구분"
-                  : "기하학·입력 조건 기반 검토"}
+                  ? "CAD 출처, 재구성 후보 구분"
+                  : "기하학, 입력 조건 기반 검토"}
               </span>
             </div>
           </div>
@@ -1222,7 +1223,7 @@ export default function App() {
         >
           <div className="drawer-heading">
             <strong>
-              {bimWorkspace ? "속성 · 도면 근거" : "BF 경로 설정"}
+              {bimWorkspace ? "속성과 도면 근거" : "BF 경로 설정"}
             </strong>
             <button
               aria-label="속성 패널 닫기"
@@ -1282,7 +1283,7 @@ export default function App() {
                     <option value="">출발지 선택</option>
                     {model.places.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}
+                        {displayText(p.name)}
                       </option>
                     ))}
                   </select>
@@ -1300,7 +1301,7 @@ export default function App() {
                     <option value="">목적지 선택</option>
                     {model.places.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}
+                        {displayText(p.name)}
                       </option>
                     ))}
                   </select>
@@ -1329,7 +1330,7 @@ export default function App() {
                 >
                   {Object.entries(rules.profiles).map(([key, p]) => (
                     <option key={key} value={key}>
-                      {p.name}
+                      {displayText(p.name)}
                     </option>
                   ))}
                 </select>
@@ -1437,7 +1438,7 @@ export default function App() {
                             {route.floors
                               .map(
                                 (id) =>
-                                  model.floors.find((f) => f.id === id)?.name,
+                                  displayText(model.floors.find((f) => f.id === id)?.name),
                               )
                               .join(" → ") || "—"}
                           </strong>
@@ -1455,11 +1456,11 @@ export default function App() {
                       </div>
                       <ol className="directions">
                         {route.instructions.map((s, i) => (
-                          <li key={i}>{s}</li>
+                          <li key={i}>{displayText(s)}</li>
                         ))}
                       </ol>
                       <p className="muted">
-                        {route.assumptions} · 격자 0.25 m ·{" "}
+                        {route.assumptions}, 격자 0.25 m, {" "}
                         {route.node_count.toLocaleString()}개 노드
                       </p>
                       {route.excluded.length > 0 && (
@@ -1492,7 +1493,7 @@ export default function App() {
                                 }
                               </button>
                               {r.floor_ids?.length ? ` (${r.floor_ids.map(id=>model.floors.find(f=>f.id===id)?.name??id).join(' → ')})` : ''}
-                              : {statusLabel[r.status]} — {r.reasons.join(", ")}
+                              : {statusLabel[r.status]} — {displayText(r.reasons.join(", "))}
                             </p>
                           ))}
                         </details>
@@ -1514,9 +1515,9 @@ export default function App() {
                   </div>
                   {item ? (
                     <>
-                      <strong className="selected-name">{item.name}</strong>
+                      <strong className="selected-name">{displayText(item.name)}</strong>
                       <p className="muted">
-                        {labels[item.type]} · {item.id}
+                        {labels[item.type]}, {item.id}
                       </p>
                       <span
                         className={"status " + evaluate(item, profile).status}
@@ -1525,7 +1526,7 @@ export default function App() {
                       </span>
                       <ul className="reasons">
                         {evaluate(item, profile).reasons.map((s) => (
-                          <li key={s}>{s}</li>
+                          <li key={s}>{displayText(s)}</li>
                         ))}
                       </ul>
                       {[
@@ -1627,13 +1628,13 @@ export default function App() {
                             })
                           }
                         />
-                        기하학·입력 속성을 확인했습니다
+                        기하학, 입력 속성을 확인했습니다
                       </label>
                       <button
                         className="full"
                         onClick={() => editElement(item)}
                       >
-                        위치 · 형상 · 분류 편집
+                        위치, 형상, 분류 편집
                       </button>
                       <button
                         className="text-button"
@@ -1675,20 +1676,19 @@ export default function App() {
       <footer className="status-bar">
         <span>
           <span className="connection-dot" />
-          공간이음<span className="status-divider">/</span>
-          {bimWorkspace ? "BIM MODEL REVIEW" : "BF NAVIGATION"}
+          {bimWorkspace ? "BIM 모델 검토" : "BF 경로 탐색"}
         </span>
         <div>
           {model.warnings.length > 0 && (
             <details className="warnings">
               <summary>
                 <TriangleAlert size={12} />
-                모델 검토 {model.warnings.length}건
+                확인할 사항 {model.warnings.length}건
               </summary>
               <div className="warnings-content">
-                <h2>모델 분석 주의사항</h2>
+                <h2>확인이 필요한 사항</h2>
                 {model.warnings.slice(0, 80).map((w, i) => (
-                  <p key={i}>{w}</p>
+                  <p key={i}>{displayText(w)}</p>
                 ))}
               </div>
             </details>
@@ -1696,14 +1696,14 @@ export default function App() {
           <span className="footer-disclaimer">
             {model.is_example
               ? "테스트용 예제"
-              : "도면 기반 · 미확정 치수 포함"}{" "}
-            · BF 인증 판정과 별도
+              : "미확정 치수 포함"}{" "}
+            / BF 인증 여부는 별도 확인
           </span>
           <span className="status-unit">m</span>
         </div>
       </footer>
       <div className={`toast ${message ? "visible" : ""}`} role="status">
-        {message && <CheckCircle2 size={16} />} {message}
+        {message && <CheckCircle2 size={16} />} {displayText(message)}
       </div>
       {editor && (
         <div className="modal-backdrop">
@@ -1717,7 +1717,7 @@ export default function App() {
             <div>
               <h2 id="editor-title">
                 {editor === "model"
-                  ? "층 · 장소 · 층간 연결 편집"
+                  ? "층, 장소, 층간 연결 편집"
                   : editor === "add"
                     ? "건축 요소 추가"
                     : "객체 상세 편집"}
@@ -1727,7 +1727,7 @@ export default function App() {
               </button>
             </div>
             <p>
-              좌표·치수는 m입니다. polygon은 XY 점 목록, floor.elevation은 층
+              좌표, 치수는 m입니다. polygon은 XY 점 목록, floor.elevation은 층
               기준 높이입니다. verified는 현장 또는 도면 확인 후 설정하세요.
             </p>
             <textarea

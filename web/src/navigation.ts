@@ -65,7 +65,7 @@ export function findRoute(m:Model,startId:string,endId:string,p:Profile,grid=.25
  for(const l of m.links){const e=m.elements.find(x=>x.id===l.element_id)!;if(evaluate(e,p).status!=='pass')continue;const a=placeNodes.get(l.from_place),b=placeNodes.get(l.to_place);if(a!==undefined&&b!==undefined){const elevation=Math.abs(m.floors.find(f=>f.id===nodes[a].floor)!.elevation-m.floors.find(f=>f.id===nodes[b].floor)!.elevation);if(l.distance+1e-8<elevation)throw Error(l.id+': 층간 이동 길이가 층간 높이보다 짧습니다.');connect(a,b,l.distance,l.distance*(e.type==='stair'?p.stair_penalty:1)+(e.type==='elevator'?p.elevator_wait*p.speed:0),l.id);}}
  result.node_count=nodes.length;
  const a=placeNodes.get(startId),b=placeNodes.get(endId);
- if(a===undefined||b===undefined){result.instructions=['출발지 또는 목적지가 확인된 이동 가능 영역 밖에 있습니다. 미확인 바닥·문·층간 시설의 속성을 보완하세요.'];return result;}
+ if(a===undefined||b===undefined){result.instructions=['출발지 또는 목적지가 확인된 이동 가능 영역 밖에 있습니다. 미확인 바닥, 문, 층간 시설의 속성을 보완하세요.'];return result;}
  const costs=new Map<number,number>([[a,0]]),prev=new Map<number,{node:number;edge:Edge}>(),queue=new Heap();
  // Horizontal Euclidean distance is admissible if all floor links keep XY fixed.
  // Arbitrary CAD links may change XY, so use zero heuristic (A* reduces to Dijkstra).
@@ -73,12 +73,12 @@ export function findRoute(m:Model,startId:string,endId:string,p:Profile,grid=.25
  const heuristic=(id:number)=>aligned?dist(nodes[id].point,nodes[b].point):0;
  queue.push({id:a,f:heuristic(a)});let found=false;
  while(queue.data.length){const item=queue.pop(),u=item.id;if(item.f>(costs.get(u)??Infinity)+heuristic(u)+1e-8)continue;if(u===b){found=true;break;}for(const edge of adj[u]){const next=costs.get(u)!+edge.cost;if(next<(costs.get(edge.to)??Infinity)-1e-8){costs.set(edge.to,next);prev.set(edge.to,{node:u,edge});queue.push({id:edge.to,f:next+heuristic(edge.to)});}}}
- if(!found){result.instructions=['현재 이동 조건을 만족하는 연결 경로가 없습니다. 문 유효폭·단차·층간 시설 및 확인 필요 요소를 검토하세요.'];return result;}
+ if(!found){result.instructions=['현재 이동 조건을 만족하는 연결 경로가 없습니다. 문 유효폭, 단차, 층간 시설 및 확인 필요 요소를 검토하세요.'];return result;}
  const order=[b];let cursor=b;const usedLinks:string[]=[];while(cursor!==a){const item=prev.get(cursor)!;result.distance+=item.edge.distance;if(item.edge.link)usedLinks.push(item.edge.link);cursor=item.node;order.unshift(cursor);}
  result.status='found';result.floors=[...new Set(order.map(id=>nodes[id].floor))];
  result.points=order.map((id,i)=>({floor:nodes[id].floor,point:nodes[id].point,via:i?prev.get(id)?.edge.link:undefined}));
  result.uses_elevator=usedLinks.some(id=>m.elements.find(e=>e.id===m.links.find(l=>l.id===id)!.element_id)!.type==='elevator');
  result.seconds=result.distance/p.speed+usedLinks.reduce((n,id)=>n+(m.elements.find(e=>e.id===m.links.find(l=>l.id===id)!.element_id)!.type==='elevator'?p.elevator_wait:0),0);
- result.instructions=[`${start.name}에서 출발합니다.`,...usedLinks.reverse().map(id=>{const l=m.links.find(x=>x.id===id)!,e=m.elements.find(x=>x.id===l.element_id)!;return `${e.name}을 이용해 층을 이동합니다.`;}),`${end.name}에 도착합니다.`, '문·벽체·장애물의 기하학과 현재 이동 조건을 적용했습니다.'];
+ result.instructions=[`${start.name}에서 출발합니다.`,...usedLinks.reverse().map(id=>{const l=m.links.find(x=>x.id===id)!,e=m.elements.find(x=>x.id===l.element_id)!;return `${e.name}을 이용해 층을 이동합니다.`;}),`${end.name}에 도착합니다.`, '문, 벽체, 장애물의 기하학과 현재 이동 조건을 적용했습니다.'];
  return result;
 }

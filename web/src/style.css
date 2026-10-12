@@ -255,9 +255,9 @@ input[type="range"] {
   display: block;
   margin-top: 3px;
   color: var(--muted);
-  font-size: 8px;
-  font-weight: 550;
-  letter-spacing: 1.45px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 .header-divider {
   height: 24px;
@@ -456,7 +456,7 @@ input[type="range"] {
 }
 .section-label {
   font-size: 9px;
-  letter-spacing: 1.4px;
+  letter-spacing: 0;
   font-weight: 600;
   color: #8a948d;
   margin-bottom: 11px;
@@ -1109,7 +1109,7 @@ details summary::marker {
   justify-content: space-between;
   font-size: 8px;
   color: #919a92;
-  letter-spacing: 0.65px;
+  letter-spacing: 0;
   padding-top: 6px;
 }
 .model-caption > span:last-child {
@@ -2065,8 +2065,8 @@ details summary::marker {
     width: 26px;
   }
   .brand small {
-    font-size: 7px;
-    letter-spacing: 1px;
+    font-size: 9px;
+    letter-spacing: 0;
   }
   .header-divider {
     display: none;

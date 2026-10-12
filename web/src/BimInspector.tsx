@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { displayText, uncertaintyLabel } from './presentation';
 import { Box, FileSearch, Info, TriangleAlert } from "lucide-react";
 import { labels, type Model, type Element } from "./model";
 import { planArea } from "./bimGeometry";
@@ -16,7 +17,7 @@ interface Props {
 const format = (v: unknown) =>
   typeof v === "number" ? v.toFixed(3) + " m" : "미확인";
 const evidenceLabels: Record<string,string> = {identity:"부재 부호",position:"평면 위치",profile:"평면 윤곽",base:"하단 레벨",top:"상단 높이",material:"재료",scope:"적용 층",revision:"도면 개정",member_mark:"창호 부호",sill:"창대 기준",head:"개구부 상단",opening_height:"개구부 높이",glass_specification:"유리 구성 두께"};
-const evidenceStates: Record<string,string> = {verified:"검증 완료",drawing_based:"도면에서 측정",drawing_correlated:"도면 간 대조 · 최종 검토 필요",candidate:"연결 후보 · 확인 필요",provisional:"시각화 가정",unresolved:"미확정"};
+const evidenceStates: Record<string,string> = {verified:"검증 완료",drawing_based:"도면에서 측정",drawing_correlated:"도면 간 대조, 최종 검토 필요",candidate:"연결 후보, 확인 필요",provisional:"시각화 가정",unresolved:"미확정"};
 export default function BimInspector({
   model,
   library,
@@ -104,7 +105,7 @@ export default function BimInspector({
         </div>
         {item ? (
           <>
-            <h3>{item.name}</h3>
+            <h3>{displayText(item.name)}</h3>
             <p className="object-type">
               {labels[item.type]} / {item.type.toUpperCase()}
             </p>
@@ -116,13 +117,13 @@ export default function BimInspector({
               {item.verified
                 ? "사용자 검토 기록 있음"
                 : item.source.geometry_status === "measured_plan"
-                  ? "평면 형상 측정 · 높이 검토 필요"
-                  : "재구성 후보 · 검토 필요"}
+                  ? "평면 형상 측정, 높이 검토 필요"
+                  : "재구성 후보, 검토 필요"}
             </span>
             <h4 className="fact-heading">기본 정보</h4>
             <dl className="bim-facts">
               <dt>소속 층</dt>
-              <dd>{model.floors.find((f) => f.id === item.floor_id)?.name}</dd>
+              <dd>{displayText(model.floors.find((f) => f.id === item.floor_id)?.name)}</dd>
               <dt>기준 Z</dt>
               <dd>
                 {(
@@ -131,13 +132,13 @@ export default function BimInspector({
                 ).toFixed(3)}{" "}
                 m
               </dd>
-        <dt>{girder ? "구조 보 단면" : doorSchedule ? "출입문 폭 · 높이" : windowSchedule ? "창호 폭 · 높이" : "높이 / 두께"}</dt>
-              <dd>{girder ? `${girder.mark} · ${format(girder.section_m[0])} × ${format(girder.section_m[1])} (일람표 대조)` : windowSchedule || doorSchedule ? `${(windowSchedule ?? doorSchedule)!.mark} · ${format((windowSchedule ?? doorSchedule)!.width_m)} × ${format((windowSchedule ?? doorSchedule)!.height_m)} (도면 대조)` : format(item.height)}</dd>
-              {girder && <><dt>기둥 중심간 경간</dt><dd>{format(girder.span_m)}<small>주열·보 부호·지지 기둥을 연결한 해석 형상입니다. 원본 보 외곽·개별 SL 높이·설계 승인은 미확정입니다.</small></dd></>}
+        <dt>{girder ? "구조 보 단면" : doorSchedule ? "출입문 폭과 높이" : windowSchedule ? "창호 폭과 높이" : "높이 / 두께"}</dt>
+              <dd>{girder ? `${girder.mark}, ${format(girder.section_m[0])} × ${format(girder.section_m[1])} (일람표 대조)` : windowSchedule || doorSchedule ? `${(windowSchedule ?? doorSchedule)!.mark}, ${format((windowSchedule ?? doorSchedule)!.width_m)} × ${format((windowSchedule ?? doorSchedule)!.height_m)} (도면 대조)` : format(item.height)}</dd>
+              {girder && <><dt>기둥 중심간 경간</dt><dd>{format(girder.span_m)}<small>주열, 보 부호, 지지 기둥을 연결한 해석 형상입니다. 원본 보 외곽, 개별 SL 높이, 설계 승인은 미확정입니다.</small></dd></>}
               <dt>모델 평면 면적</dt>
               <dd>
                 {planArea(item).toFixed(2)} m²{" "}
-                <small>(경계 후보 · 수량 미검증)</small>
+                <small>(경계 후보, 수량 미검증)</small>
               </dd>
               {item.source.architectural_slab_profiles !== undefined && (
                 <>
@@ -153,7 +154,7 @@ export default function BimInspector({
               )}
             </dl>
             <details className="fact-section">
-              <summary>형상 정보 · 구성 요소</summary>
+              <summary>형상과 구성요소</summary>
               <dl className="bim-facts">
                 <dt>X / Y 범위 길이</dt>
                 <dd>
@@ -165,8 +166,8 @@ export default function BimInspector({
                 {windowReview&&<>
                   <dt>창호 평면 생성 대조</dt>
                   <dd>윤곽 밖 형상 {windowReview.before_outside_footprint_m2.toFixed(6)} → {windowReview.after_outside_footprint_m2.toFixed(6)} m²
-                    {windowReview.native_segments>1&&` · CAD 면 쌍 ${windowReview.native_segments}구간`}
-                    <small>(생성 단계의 평면 검사 · 창호 높이·상세 미확정)</small></dd>
+                    {windowReview.native_segments>1&&`, CAD 면 쌍 ${windowReview.native_segments}구간`}
+                    <small>(생성 단계의 평면 검사, 창호 높이, 상세 미확정)</small></dd>
                 </>}
                 {item.source.measured_thickness_m !== undefined && (
                   <>
@@ -187,7 +188,7 @@ export default function BimInspector({
                   <>
                     <dt>조립체 구성요소</dt>
                     <dd>
-                      {item.components.length}개 ·{" "}
+                      {item.components.length}개, {" "}
                       {[...new Set(item.components.map((c) => c.role))].join(
                         ", ",
                       )}
@@ -205,10 +206,10 @@ export default function BimInspector({
               </dl>
             </details>
             {junction&&<details className="fact-section" open>
-              <summary>개구부 · 계단참 연결 검사</summary>
+              <summary>개구부와 계단참 연결</summary>
               <dl className="bim-facts">
-                <dt>기하 관측</dt><dd>{{observed_host_cut:'호스트 벽 절단 후보 연결',unresolved_no_wall_host:'벽 호스트 미대응 · 개구부/출입구 위치 검토 필요',observed_near_contact:'상층 바닥과 근접한 계단참 후보',unresolved_connection:'계단참과 상층 바닥 연결 미확정'}[junction.status]??junction.status}</dd>
-                {junction.host_wall_ids&&<><dt>대응 벽체</dt><dd>{junction.host_wall_ids.length}개 · 아래 관련 객체에서 선택</dd></>}
+                <dt>기하 관측</dt><dd>{{observed_host_cut:'호스트 벽 절단 후보 연결',unresolved_no_wall_host:'벽 호스트 미대응, 개구부/출입구 위치 검토 필요',observed_near_contact:'상층 바닥과 근접한 계단참 후보',unresolved_connection:'계단참과 상층 바닥 연결 미확정'}[junction.status]??junction.status}</dd>
+                {junction.host_wall_ids&&<><dt>대응 벽체</dt><dd>{junction.host_wall_ids.length}개, 아래 관련 객체에서 선택</dd></>}
                 {junction.kind==='stair'&&<>
                   <dt>상층</dt><dd>{model.floors.find(f=>f.id===junction.next_floor_id)?.name??'미확정'}</dd>
                   <dt>상부 참 레벨</dt><dd>{format(junction.upper_landing_elevation_m)}</dd>
@@ -216,10 +217,10 @@ export default function BimInspector({
                   <dt>상층 바닥 평면 간격</dt><dd>{format(junction.plan_gap_to_upper_slab_m)}</dd>
                 </>}
               </dl>
-              <p className="muted">미확정 형상 간 기하 비교입니다. 실제 접합·문 유효폭·계단 진행 방향·BF 통행 승인은 별도 검토가 필요합니다.</p>
+              <p className="muted">미확정 형상 간 기하 비교입니다. 실제 접합, 문 유효폭, 계단 진행 방향, BF 통행 승인은 별도 검토가 필요합니다.</p>
             </details>}
             <details className="fact-section" open>
-              <summary>CAD 근거 · 높이 출처</summary>
+              <summary>도면 근거와 높이</summary>
               <dl className="bim-facts">
                 <dt>객체 ID</dt>
                 <dd>{item.id}</dd>
@@ -228,9 +229,9 @@ export default function BimInspector({
                 <dt>높이 근거</dt>
                 <dd>
                   {windowSchedule
-                    ? `창호도 대조 · ${format(windowSchedule.height_m)} / 층 기준면 검토 필요`
+                    ? `창호도 대조, ${format(windowSchedule.height_m)} / 층 기준면 검토 필요`
                     : item.height === null
-                    ? "미확인 · 가정 표시와 별도로 저장"
+                    ? "미확인, 가정 표시와 별도로 저장"
                     : String(
                         item.source.height_source ?? "구성요소별 근거 확인",
                       )}
@@ -240,15 +241,15 @@ export default function BimInspector({
                     <dt>평면 CAD 객체</dt>
                     <dd>{Array.isArray(item.source.cad_ids) ? (item.source.cad_ids as string[]).join(", ") : "미확인"}</dd>
                     <dt>미확정 정보</dt>
-                    <dd>{Array.isArray(item.source.unknowns) ? (item.source.unknowns as string[]).join(", ") : "부재 상세 확인 필요"}</dd>
+                    <dd>{Array.isArray(item.source.unknowns) ? (item.source.unknowns as string[]).map(uncertaintyLabel).join(", ") : "부재 상세 확인 필요"}</dd>
                     <dt>검증 입체 여부</dt>
-                    <dd>{(item.source.verification as {eligible?:boolean}|undefined)?.eligible ? "도면 근거 검증 · Verified IFC 포함" : model.provenance.coordination_draft ? "미확정 · Draft IFC 포함 / Verified IFC 제외" : "미확정 · IFC 입체에서 제외"}</dd>
+                    <dd>{(item.source.verification as {eligible?:boolean}|undefined)?.eligible ? "검증 IFC에 포함" : model.provenance.coordination_draft ? "미확정 형상으로 검토 IFC에만 포함" : "미확정으로 IFC 입체에서 제외"}</dd>
                   </>
                 )}
               </dl>
             </details>
             {item.source.validation_status !== undefined && <details className="fact-section" open>
-              <summary>검증 상태 · 적용 가정</summary>
+              <summary>검토 상태와 적용 가정</summary>
               <dl className="bim-facts">
                 <dt>부재 상태</dt><dd>{evidenceStates[String(item.source.validation_status)] ?? String(item.source.validation_status)}</dd>
                 {Object.entries((item.source.property_status ?? {}) as Record<string,string>).map(([key,value])=>
@@ -257,52 +258,52 @@ export default function BimInspector({
               <p>재료 색상은 미확정 분류의 시각화이며 설계 마감 확정값이 아닙니다.</p>
               {item.source.property_evidence !== undefined && <details open>
                 <summary>속성별 도면 근거</summary>
-                <table><thead><tr><th>속성</th><th>확인 상태 · 값</th><th>근거</th></tr></thead><tbody>
+                <table><thead><tr><th>속성</th><th>확인 상태, 값</th><th>근거</th></tr></thead><tbody>
                   {Object.entries(item.source.property_evidence as Record<string,{status:string;value_m?:number;value?:string;references?:unknown[]}>).map(([field,record])=>
-                    <tr key={field}><td>{evidenceLabels[field] ?? field}</td><td>{evidenceStates[record.status] ?? record.status}{record.value_m!==undefined && ` · ${format(record.value_m)}`}{record.value && ` · ${record.value}`}</td><td>{record.references?.length ?? 0}건</td></tr>)}
+                    <tr key={field}><td>{evidenceLabels[field] ?? field}</td><td>{evidenceStates[record.status] ?? record.status}{record.value_m!==undefined && `, ${format(record.value_m)}`}{record.value && `, ${record.value}`}</td><td>{record.references?.length ?? 0}건</td></tr>)}
                 </tbody></table>
-                <details><summary>도면 객체와 검토 기록</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.property_evidence,null,2)}</pre></details>
+                <details><summary>도면 객체와 검토 기록</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{displayText(JSON.stringify(item.source.property_evidence,null,2))}</pre></details>
               </details>}
-              {item.source.plan_schedule_links !== undefined && <details open>
+              {item.source.plan_schedule_links !== undefined && <details>
                 <summary>창호도 부호 연결 후보</summary>
-                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.plan_schedule_links,null,2)}</pre>
+                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{displayText(JSON.stringify(item.source.plan_schedule_links,null,2))}</pre>
               </details>}
               {windowSchedule && <details className="fact-section" open>
-                <summary>적용 창호 규격 · {windowSchedule.mark}</summary>
+                <summary>적용 창호 규격, {windowSchedule.mark}</summary>
                 <dl className="bim-facts">
-                  <dt>전체 폭 · 높이</dt><dd>{format(windowSchedule.width_m)} · {format(windowSchedule.height_m)}</dd>
-                  <dt>창대 · 유리 구성 두께</dt><dd>{format(windowSchedule.sill_m)} · {format(windowSchedule.glass_thickness_m)}</dd>
-                  {windowSchedule.glazing_build_up_m && <><dt>복층유리 구성</dt><dd>{windowSchedule.glazing_build_up_m.map(v=>(v*1000).toFixed(0)).join(" + ")} mm · 유리 / 중공층 / 유리</dd></>}
-                  <dt>도면 적용 위치</dt><dd>{windowSchedule.scope_text}</dd>
+                  <dt>전체 폭, 높이</dt><dd>{format(windowSchedule.width_m)}, {format(windowSchedule.height_m)}</dd>
+                  <dt>창대, 유리 구성 두께</dt><dd>{format(windowSchedule.sill_m)}, {format(windowSchedule.glass_thickness_m)}</dd>
+                  {windowSchedule.glazing_build_up_m && <><dt>복층유리 구성</dt><dd>{windowSchedule.glazing_build_up_m.map(v=>(v*1000).toFixed(0)).join(" + ")} mm, 유리 / 중공층 / 유리</dd></>}
+                  <dt>도면 적용 위치</dt><dd>{displayText(windowSchedule.scope_text)}</dd>
                 </dl>
-                <p>평면 부호·층·프레임 폭을 창호도와 대조했습니다. 설계 승인과 BF 통행 확인은 별도입니다.</p>
+                <p>평면 부호, 층, 프레임 폭을 창호도와 대조했습니다. 설계 승인과 BF 통행 확인은 별도입니다.</p>
               </details>}
               {doorSchedule && <details className="fact-section" open>
-                <summary>적용 출입문 규격 · {doorSchedule.mark}</summary>
+                <summary>적용 출입문 규격, {doorSchedule.mark}</summary>
                 <dl className="fact-grid">
-                  <dt>전체 폭 · 높이</dt><dd>{format(doorSchedule.width_m)} · {format(doorSchedule.height_m)}</dd>
-                  <dt>문짝 상단</dt><dd>{format(doorSchedule.leaf_head_m)} · 조립체 상단과 구분</dd>
-                  <dt>도면 적용 위치</dt><dd>{doorSchedule.scope_text}</dd>
+                  <dt>전체 폭, 높이</dt><dd>{format(doorSchedule.width_m)}, {format(doorSchedule.height_m)}</dd>
+                  <dt>문짝 상단</dt><dd>{format(doorSchedule.leaf_head_m)}, 조립체 상단과 구분</dd>
+                  <dt>도면 적용 위치</dt><dd>{displayText(doorSchedule.scope_text)}</dd>
                 </dl>
-                <p>원본 문틀·기호·폭을 대조했습니다. 문턱, 유효 통과 폭, 개폐·운용 조건과 설계 승인은 별도 확인이 필요합니다.</p>
+                <p>원본 문틀, 기호, 폭을 대조했습니다. 문턱, 유효 통과 폭, 개폐, 운용 조건과 설계 승인은 별도 확인이 필요합니다.</p>
               </details>}
-              {item.source.section_dimension_link !== undefined && <details open>
+              {item.source.section_dimension_link !== undefined && <details>
                 <summary>계단 단면 치수 대조</summary>
-                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.section_dimension_link,null,2)}</pre>
+                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{displayText(JSON.stringify(item.source.section_dimension_link,null,2))}</pre>
               </details>}
               {item.source.verification !== undefined && <details>
-                <summary>검증 조건 · 남은 항목</summary>
-                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.verification,null,2)}</pre>
+                <summary>검증 조건, 남은 항목</summary>
+                <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{displayText(JSON.stringify(item.source.verification,null,2))}</pre>
               </details>}
-              {item.source.candidate_classification !== undefined && <p>벽 후보 판정: {String(item.source.candidate_classification)} · {String(item.source.classification_reason)}</p>}
-              <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{JSON.stringify(item.source.assumptions ?? {}, null, 2)}</pre>
+              {item.source.candidate_classification !== undefined && <p>벽 후보 판정: {String(item.source.candidate_classification)}, {displayText(String(item.source.classification_reason))}</p>}
+              <pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",fontSize:12}}>{displayText(JSON.stringify(item.source.assumptions ?? {}, null, 2))}</pre>
               <details><summary>구성요소별 적용 치수</summary>
-                <pre style={{whiteSpace:"pre-wrap",fontSize:12}}>{JSON.stringify(item.source.applied_dimensions ?? {},null,2)}</pre>
+                <pre style={{whiteSpace:"pre-wrap",fontSize:12}}>{displayText(JSON.stringify(item.source.applied_dimensions ?? {},null,2))}</pre>
               </details>
             </details>}
             {item.source.assembly_status !== undefined && (
               <details>
-                <summary>임시 조립체 치수 · 도면 검증 전</summary>
+                <summary>임시 조립체 치수, 도면 검증 전</summary>
                 <p className="geometry-assumption">
                   아래 높이/두께에는 가정값이 포함됩니다. 경사 솔리드의 높이는 Z
                   범위이며 실제 판 두께와 다릅니다.
@@ -310,7 +311,7 @@ export default function BimInspector({
                 <table>
                   <thead>
                     <tr>
-                      <th>구성 · 재질</th>
+                      <th>구성, 재질</th>
                       <th>상대 Z (m)</th>
                       <th>Z 높이 (m)</th>
                     </tr>
@@ -321,15 +322,15 @@ export default function BimInspector({
                         <td>
                           <details>
                             <summary>
-                              {c.role} · {String(c.source.material ?? "미확인")}
+                              {c.role}, {String(c.source.material ?? "미확인")}
                             </summary>
                             <small>{c.id || "이전 구성 ID 없음"}</small>
                             <p>
                               {c.source.dimension_verified === true
                                 ? "치수 확인 기록 있음"
-                                : "임시 치수 · 검토 필요"}
+                                : "임시 치수, 검토 필요"}
                             </p>
-                            <pre>{JSON.stringify(c.source, null, 2)}</pre>
+                            <pre>{displayText(JSON.stringify(c.source, null, 2))}</pre>
                           </details>
                         </td>
                         <td>{c.z_offset.toFixed(3)}</td>
@@ -355,8 +356,8 @@ export default function BimInspector({
             )}
             {item.source.continuity_repair_status !== undefined && (
               <p className="geometry-assumption">
-                건축적 단절을 메운 검토용 보정입니다. 창 주변 벽·리빌, 바닥
-                연결, 파라펫·옥탑 덮개의 보정 치수는 도면 확정값이 아닙니다.
+                건축적 단절을 메운 검토용 보정입니다. 창 주변 벽, 리빌, 바닥
+                연결, 파라펫, 옥탑 덮개의 보정 치수는 도면 확정값이 아닙니다.
                 원래 BF 평면과 통행 속성은 보존합니다.
               </p>
             )}
@@ -397,7 +398,7 @@ export default function BimInspector({
                   {item.source.structural_section_candidates
                     .map((c) => String((c as { mark?: string }).mark))
                     .join(", ")}
-                  . 위치·부재 부호 매칭은 미확정입니다.
+                  . 위치, 부재 부호 매칭은 미확정입니다.
                 </p>
               )}
             {item.source.flight_height_status !== undefined && (
@@ -422,12 +423,12 @@ export default function BimInspector({
             )}
             {onEdit && (
               <button className="full" onClick={() => onEdit(item)}>
-                객체 형상 · 속성 편집
+                객체 형상, 속성 편집
               </button>
             )}
             <details>
               <summary>CAD 객체 ID와 복원 근거</summary>
-              <pre>{JSON.stringify(item.source, null, 2)}</pre>
+              <pre>{displayText(JSON.stringify(item.source, null, 2))}</pre>
             </details>
           </>
         ) : (
@@ -443,7 +444,7 @@ export default function BimInspector({
         )}
       </section>
       <details className="model-overview">
-        <summary>모델 구성 · 층별 요소</summary>{" "}
+        <summary>층별 부재 수</summary>{" "}
         <div className="bim-floor-list">
           {model.floors.map((f) => (
             <button
@@ -451,7 +452,7 @@ export default function BimInspector({
               key={f.id}
               onClick={() => onFloor(f.id)}
             >
-              {f.name}
+              {displayText(f.name)}
               <small> Z {f.elevation.toFixed(2)} m</small>
             </button>
           ))}
@@ -474,9 +475,9 @@ export default function BimInspector({
       </details>
       {sections.length > 0 && (
         <details className="drawing-survey">
-          <summary>구조 일람표 · 상세 도면 조사</summary>
+          <summary>구조 일람표와 상세 도면</summary>
           <p className="muted">
-            아래 치수는 일람표/상세 기록입니다. 개별 부재의 위치·높이·재료
+            아래 치수는 일람표/상세 기록입니다. 개별 부재의 위치, 높이, 재료
             적용은 미확정입니다.
           </p>
           <table>
@@ -504,14 +505,14 @@ export default function BimInspector({
             </p>
           ))}
           <label>
-            상세·재료 기록
+            상세, 재료 기록
             <select
               aria-label="도면 근거 범주"
               value={noteFilter}
               onChange={(e) => setNoteFilter(e.target.value)}
             >
               <option value="structure">구조</option>
-              <option value="facade">외벽 · 창호</option>
+              <option value="facade">외벽, 창호</option>
               <option value="interior">실내 마감</option>
               <option value="all">전체</option>
             </select>
@@ -522,7 +523,7 @@ export default function BimInspector({
           </p>
           {filteredNotes.slice(0, 40).map((n, i) => (
             <p key={i}>
-              <strong>{n.text}</strong>
+              <strong>{displayText(n.text)}</strong>
               <small>{n.file}</small>
             </p>
           ))}

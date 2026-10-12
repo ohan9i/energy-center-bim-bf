@@ -120,7 +120,7 @@ export function validateSpatial(m:Model,input:unknown):Spatial {
   }
  }
  for(const r of [...s.spaces,...s.portals,...s.vertical])if(r.status==='confirmed'&&!approved(r,s.model_fingerprint))
-  throw Error(r.id+': 검토자·시점·현재 BIM 해시·도면 근거와 미확정 사유 해소 기록이 필요합니다.');
+  throw Error(r.id+': 검토자, 시점, 현재 BIM 해시, 도면 근거와 미확정 사유 해소 기록이 필요합니다.');
  const spaces=new Map(s.spaces.map(x=>[x.id,x]));
  for(const v of s.vertical)if(v.element_ids.some(id=>!elements.has(id)))throw Error(v.id+': 층간 시설 부재 참조 오류');
  const confirmed=s.spaces.filter(x=>approved(x,s.model_fingerprint));
