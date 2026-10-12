@@ -458,4 +458,6 @@ def complete(elements,specs,traces,structure,row,schedule,structural_report):
     report['terminals']=complete_terminals(elements,specs)
     print('Subtracting duplicate slab junction volumes',flush=True)
     report['slab_junctions']=trim_solid_junctions(elements,specs)
+    from .ceiling_completion import complete_ceilings
+    report['ceilings']=complete_ceilings(elements,list(specs.values()))
     return report

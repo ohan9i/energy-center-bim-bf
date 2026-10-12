@@ -505,13 +505,14 @@ def build(sync_web=False,reviews_path=None):
             'height_assignment_status':e['source']['property_status']['height'],'direction_verified':False})
 
     model=Model.model_validate({'id':preview['id'],'name':'에너지융복합종합지원센터 · 통합 3D 검토 Draft',
-        'revision':9,'floors':preview['floors'],'elements':elements,'places':legacy['places'],'links':[],
+        'revision':11,'floors':preview['floors'],'elements':elements,'places':legacy['places'],'links':[],
         'warnings':['Coordination Draft: 검증 완료 설계 BIM이 아닙니다. 부재와 속성별 가정을 확인하세요.',
                     '구조 보의 원본 외곽과 개별 SL 레벨은 미확정입니다. 추가 작은보와 일부 보 배치는 사용자가 허용한 추정 형상입니다.',
                     '슬래브 패널 경계, 벽체 보완, 옥탑 코어 지붕, PIT와 파라펫은 주변 형상에 맞춘 추정이며 설계 확인이 필요합니다.',
                     '상부 지붕은 자체 도면의 경계 후보이며 평지붕 레벨·두께는 가정입니다.',
                     '실·복도 경계 미분류 영역이 남아 전체 내부 공간 분할과 실제 BF 통행 검증은 미완료입니다.'],
         'provenance':{**preview['provenance'],'modelling_version':12,'export_status':'coordination_draft',
+             'ceiling_completion':{'version':1,'design_verified':False,'floors':completion_report['ceilings']},
              'assumed_completion':{'authorization':completion_report['authorization'],'design_verified':False,
                  'elements':sum(bool(e['source'].get('user_assumed_completion')) for e in elements),
                  'report':'completion-validation.json','route_calculated':False},

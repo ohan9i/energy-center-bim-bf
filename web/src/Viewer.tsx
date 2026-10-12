@@ -8,7 +8,7 @@ import { bounds, raw } from "./geometry";
 import type { RouteResult } from "./navigation";
 import { renderPieces, floorOffset, createRenderContext } from "./bimGeometry";
 import { pieceGeometry, sectionCap, wallEdges } from "./architecturalGeometry";
-import { interiorView, interiorCeilingFloor } from "./interiorView";
+import { interiorView, ceilingElements } from "./interiorView";
 import {spatialData,approved,physicalBlockers,difference,modelFingerprint} from './spatial';
 import {buildSpatialNetwork} from './spatialRoute';
 import {
@@ -83,6 +83,7 @@ export default function Viewer({
     [showLabels, setShowLabels] = useState(false),
     [showMarkers, setShowMarkers] = useState(Boolean(model.provenance.precision_rebuild)),
     [hideRoof, setHideRoof] = useState(false),
+    [showCeiling, setShowCeiling] = useState(false),
     [assumptions, setAssumptions] = useState(true),
     [separation, setSeparation] = useState(0),
     [section, setSection] = useState("none"),
@@ -175,7 +176,8 @@ export default function Viewer({
     controls.enableRotate = !plan;
     controls.maxPolarAngle = Math.PI * 0.94;
     controls.minDistance = 0.25;
-    const ceilingFloor=walking&&!plan&&assumptions&&!isolationKey?interiorCeilingFloor(model,floor):null;
+    const ceilingIds=new Set((walking||showCeiling)&&!plan&&assumptions&&evidenceMode!=="drawing"&&!isolationKey
+      ?ceilingElements(model,floor).map(e=>e.id):[]);
     // Keep the physical building around an indoor camera: upper stairwell
     // walls and roofs must remain visible through an actual floor opening.
     const indoorContext=walking&&!plan&&assumptions&&!isolationKey;
@@ -186,7 +188,7 @@ export default function Viewer({
         (evidenceMode !== "verified" || (e.source.validation_status === "verified" && (e.source.verification as {eligible?:boolean}|undefined)?.eligible === true)) &&
         (evidenceMode !== "drawing" || e.source.geometry_status === "measured_plan" || Boolean(e.source.precision_member_id)) &&
         !hiddenIds.includes(e.id) &&
-        (floor === "all" || e.floor_id === floor || indoorContext) &&
+        (floor === "all" || e.floor_id === floor || indoorContext || ceilingIds.has(e.id)) &&
         (!isolationKey || e.id === isolationKey),
     );
     const renderContext = createRenderContext(model);
@@ -199,7 +201,7 @@ export default function Viewer({
     const nativeTraces = model.provenance.cad_traces as {floor_id:string;kind:string;points:XY[]}[] | undefined;
     renderer.domElement.dataset.evidenceMode = evidenceMode;
     renderer.domElement.dataset.displayedElements = String(visible.length);
-    renderer.domElement.dataset.interiorCeilingElements=String(visible.filter(e=>e.floor_id===ceilingFloor).length);
+    renderer.domElement.dataset.interiorCeilingElements=String(visible.filter(e=>ceilingIds.has(e.id)&&(!hideRoof||e.type!=="roof")).length);
     const visibleTraces = (nativeTraces ?? []).filter(t => evidenceMode !== "verified" &&
       (!model.provenance.coordination_draft || evidenceMode === "drawing") && (floor === "all" || t.floor_id === floor) && !isolationKey);
     const extent = visible.length || visibleTraces.length
@@ -956,6 +958,7 @@ export default function Viewer({
     showLabels,
     showMarkers,
     hideRoof,
+    showCeiling,
     assumptions,
     evidenceMode,
     separation,
@@ -1115,6 +1118,15 @@ export default function Viewer({
                 type="checkbox"
                 checked={!hideWalls}
                 onChange={(e) => setHideWalls(!e.target.checked)}
+              />
+            </label>
+            <label>
+              <span>천장 구조 표시</span>
+              <input
+                type="checkbox"
+                checked={walking || showCeiling}
+                disabled={walking || plan || floor === "all" || !assumptions || isolated || evidenceMode === "drawing"}
+                onChange={(e) => setShowCeiling(e.target.checked)}
               />
             </label>
             <label>
