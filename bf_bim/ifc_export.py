@@ -204,16 +204,19 @@ def export_ifc(model:Model, *, coordination_draft=False):
                 ifcopenshell.api.run('pset.edit_pset',f,pset=ps,properties={'DimensionVerified':e.height is not None and e.verified,'ModelElementId':e.id,'HostWallId':wall.id})
     palette={'wall':(.79,.82,.8),'column':(.46,.51,.55),'floor':(.89,.87,.82),'roof':(.7,.73,.75),
         'door':(.59,.44,.27),'window':(.5,.78,.87),'stair':(.69,.67,.63),'elevator':(.54,.6,.67),'space':(.57,.75,.69),'corridor':(.66,.76,.85)}
+    photo_palette={'photo_white_cladding':(.933,.914,.863),'photo_charcoal_cladding':(.271,.294,.314),
+        'photo_bipv':(.149,.247,.333)}
     styles={};materials={}
     for obj,kind,material_name in styled:
         if obj.is_a('IfcElement'):
-            if material_name not in materials:materials[material_name]=f.create_entity('IfcMaterial',Name=material_name+' (CAD classification candidate)')
+            if material_name not in materials:materials[material_name]=f.create_entity('IfcMaterial',Name=material_name+(' (photo appearance; product unverified)' if material_name in photo_palette else ' (CAD classification candidate)'))
             f.create_entity('IfcRelAssociatesMaterial',GlobalId=ifcopenshell.guid.new(),RelatedObjects=[obj],RelatingMaterial=materials[material_name])
         if obj.Representation is None:continue
-        if kind not in styles:
-            r,g,b=palette.get(kind,(.65,.7,.72));rgb=f.create_entity('IfcColourRgb',Red=r,Green=g,Blue=b)
+        style_key=material_name if material_name in photo_palette else kind
+        if style_key not in styles:
+            r,g,b=photo_palette.get(material_name,palette.get(kind,(.65,.7,.72)));rgb=f.create_entity('IfcColourRgb',Red=r,Green=g,Blue=b)
             shade=f.create_entity('IfcSurfaceStyleRendering',SurfaceColour=rgb,Transparency=.5 if kind=='window' else .8 if kind=='elevator' else 0.,ReflectanceMethod='NOTDEFINED')
-            styles[kind]=f.create_entity('IfcSurfaceStyle',Name=kind,Side='BOTH',Styles=[shade])
+            styles[style_key]=f.create_entity('IfcSurfaceStyle',Name=style_key,Side='BOTH',Styles=[shade])
         for rep in obj.Representation.Representations:
-            for item in rep.Items:f.create_entity('IfcStyledItem',Item=item,Styles=[styles[kind]])
+            for item in rep.Items:f.create_entity('IfcStyledItem',Item=item,Styles=[styles[style_key]])
     return f.to_string()

@@ -62,6 +62,7 @@ export default function BimInspector({
   const doorSchedule = item?.source.door_schedule_assignment as {mark:string;width_m:number;height_m:number;leaf_head_m:number;scope_text:string}|undefined;
   const girder = item?.source.structural_girder as {mark:string;section_m:number[];span_m:number;support_ids:string[]}|undefined;
   const assumedBeam = item?.source.assumed_beam as {mark:string;span_m:number}|undefined;
+  const photoReference = (item?.source.photo_reference ?? (item?.source.photo_appearance as {reference?:unknown}|undefined)?.reference) as {title:string;url:string;pages:number[];limits:string}|undefined;
   const assumedDimensions = item?.source.assumptions as Record<string,{value_m?:number}>|undefined;
   const survey = model.provenance.drawing_evidence as
     | {
@@ -118,13 +119,16 @@ export default function BimInspector({
               <TriangleAlert size={13} />
               {item.verified
                 ? "사용자 검토 기록 있음"
+                : item.source.photo_reference
+                  ? "사진 기반 외관, 치수와 배치 추정"
                 : item.source.user_assumed_completion
                   ? "추정 보완 형상, 도면 확인 필요"
                 : item.source.geometry_status === "measured_plan"
                   ? "평면 형상 측정, 높이 검토 필요"
                   : "재구성 후보, 검토 필요"}
             </span>
-            {Boolean(item.source.user_assumed_completion) && <p className="source-note">주변 부재와 층 높이에 맞춰 보완했습니다. 도면에서 확인한 형상과 구분하며 설계 승인과 BF 통행 확인은 별도입니다.</p>}
+            {photoReference && <p className="source-note">현장 사진의 색상과 외장 구성을 반영했습니다. 패널 치수와 배치는 추정이며 실측 준공 모델이 아닙니다. <a href={photoReference.url} target="_blank" rel="noreferrer">사진 출처</a>의 혁신기술수요조사서 {photoReference.pages.join(', ')}쪽을 참고하세요.</p>}
+            {Boolean(item.source.user_assumed_completion) && !photoReference && <p className="source-note">주변 부재와 층 높이에 맞춰 보완했습니다. 도면에서 확인한 형상과 구분하며 설계 승인과 BF 통행 확인은 별도입니다.</p>}
             {assumedBeam && <dl className="bim-facts">
               <dt>추정 보 부호</dt><dd>{assumedBeam.mark}</dd>
               <dt>보 단면 후보</dt><dd>{format(assumedDimensions?.beam_width?.value_m)} × {format(assumedDimensions?.beam_depth?.value_m)}</dd>

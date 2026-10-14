@@ -61,6 +61,66 @@ def solid(poly,role,height,z=0,material='concrete',**source):
                        'dimension_verified':False,'material':material,**source}}
             for p in polygon_parts(set_precision(poly,1e-6)) if p.area>1e-7]
 
+def normalize_components(elements,specs):
+    # Stable component identities and inspectable dimensions/assumptions.
+    for e in elements:
+        cleaned=[]
+        for c in e['components']:
+            if c.get('mesh'):
+                cleaned.append(c);continue
+            geometry=set_precision(Polygon(c['polygon'],c.get('holes',[])),1e-6).simplify(.00001,preserve_topology=True)
+            if e['type']=='wall' and geometry.minimum_clearance<.0001:
+                original_geometry=geometry
+                geometry=geometry.buffer(-.0001,join_style=2).buffer(.0001,join_style=2)
+                geometry=set_precision(geometry,1e-6).simplify(.00001,preserve_topology=True)
+                removed=original_geometry.difference(geometry)
+                if not removed.is_empty:
+                    e['source'].setdefault('omitted_boolean_slivers',[]).extend({**profile_dict(q),
+                        'area_m2':q.area,'status':'unresolved','reason':'0.1 mm numerical opening removes sub-tolerance neck/spur in overlapping candidate wall bands.'}
+                        for q in polygon_parts(removed) if q.area>1e-9)
+            for q in polygon_parts(geometry):
+                rect=list(q.minimum_rotated_rectangle.exterior.coords)
+                width=min(math.dist(rect[i],rect[i+1]) for i in range(4))
+                sliver=is_boolean_sliver(q)
+                if sliver:
+                    e['source'].setdefault('omitted_boolean_slivers',[]).append({**profile_dict(q),
+                        'area_m2':q.area,'minimum_clearance_m':q.minimum_clearance,'status':'unresolved',
+                        'reason':'Small entirely sub-millimetre overlap fragment; OCCT collapses its faces. Native observation retained, no fabricated wall plate.'})
+                if q.area>1e-7 and width>=.0001 and not sliver:
+                    cleaned.append({**c,**profile_dict(q)})
+        e['components']=cleaned
+        if (e['source'].get('native_wall_closure') or e['source'].get('user_assumed_completion')
+                or e['source'].get('slab_joint_removed_volume_m3') or e['source'].get('structural_head_cut_volume_m3')):
+            # Use the same final numerical-cleanup profile as every wall. A
+            # tessellation must not bypass cleanup or become stale afterwards.
+            from .completion import regularized_profiles
+            manifold=[]
+            for c in cleaned:
+                for q,adjusted in regularized_profiles(Polygon(c['polygon'],c['holes'])):
+                    part={**c,**profile_dict(q),'source':deepcopy(c['source'])}
+                    if adjusted:part['source']['numeric_hole_clearance_m']=.0001
+                    try:part['mesh']=exact_prism_mesh(q,part['height'])
+                    except Exception:
+                        save('completion-mesh-failure.json',{'id':e['id'],'floor_id':e['floor_id'],'component':part})
+                        raise
+                    part['source']['representation']='final-profile prism tessellation; recorded 0.1 mm clearance only at non-manifold touching holes'
+                    manifold.append(part)
+            cleaned=manifold;e['components']=cleaned
+        if e['type']=='wall' and not cleaned:
+            e['source'].update(validation_status='unresolved',unresolved_plan_only=True,
+                unresolved_no_representation=True)
+            e['source']['unknowns']=e['source'].get('unknowns',[])+['No renderable wall solid after Boolean sliver cleanup; native traces retained.']
+        e['source']['numeric_cleanup']={'grid_m':1e-6,'simplification_m':.00001,'minimum_fragment_width_m':.0001,
+            'small_boolean_sliver_clearance_m':.001,
+            'wall_neck_opening_radius_m':.0001,
+            'reason':'Remove sub-OCCT tolerance Boolean slivers; source observation retained in strict stage.'}
+        for i,c in enumerate(e['components']):
+            c['id']=e['id']+'/component/'+str(i)
+            c['source'].update(validation_status='provisional',dimension_verified=False,parent_element_id=e['id'])
+        e['source']['applied_dimensions']={'component_height_ranges_m':sorted({round(c['height'],6) for c in e['components'] if c['height'] is not None}),
+                                          'storey_interval_m':specs[e['floor_id']].get('height_preview')}
+
+
 def build(sync_web=False,reviews_path=None):
     OUT.mkdir(parents=True,exist_ok=True)
     protected=[p for folder in [ROOT/'에너지-건축도면',ROOT/'cad_output'] for p in folder.rglob('*')
@@ -396,64 +456,24 @@ def build(sync_web=False,reviews_path=None):
     completion_report=complete(elements,specs,traces,structural_archive,structural_row,schedule,structural_report)
     del archive,structural_archive
     structural_report['wall_head_cuts']=trim_wall_heads(elements,[e for e in elements if e['type']=='beam'],specs)
+    from .photo_exterior import apply_photo_exterior
+    photo_report=apply_photo_exterior(elements,specs)
+    from .completion import trim_solid_junctions
+    photo_report['slab_junctions']=trim_solid_junctions(elements,specs,
+        selected_ids={e['id'] for e in elements if e['source'].get('photo_reference')})
 
-    # Stable component identities and inspectable dimensions/assumptions.
-    for e in elements:
-        cleaned=[]
-        for c in e['components']:
-            if c.get('mesh'):
-                cleaned.append(c);continue
-            geometry=set_precision(Polygon(c['polygon'],c.get('holes',[])),1e-6).simplify(.00001,preserve_topology=True)
-            if e['type']=='wall' and geometry.minimum_clearance<.0001:
-                original_geometry=geometry
-                geometry=geometry.buffer(-.0001,join_style=2).buffer(.0001,join_style=2)
-                geometry=set_precision(geometry,1e-6).simplify(.00001,preserve_topology=True)
-                removed=original_geometry.difference(geometry)
-                if not removed.is_empty:
-                    e['source'].setdefault('omitted_boolean_slivers',[]).extend({**profile_dict(q),
-                        'area_m2':q.area,'status':'unresolved','reason':'0.1 mm numerical opening removes sub-tolerance neck/spur in overlapping candidate wall bands.'}
-                        for q in polygon_parts(removed) if q.area>1e-9)
-            for q in polygon_parts(geometry):
-                rect=list(q.minimum_rotated_rectangle.exterior.coords)
-                width=min(math.dist(rect[i],rect[i+1]) for i in range(4))
-                sliver=is_boolean_sliver(q)
-                if sliver:
-                    e['source'].setdefault('omitted_boolean_slivers',[]).append({**profile_dict(q),
-                        'area_m2':q.area,'minimum_clearance_m':q.minimum_clearance,'status':'unresolved',
-                        'reason':'Small entirely sub-millimetre overlap fragment; OCCT collapses its faces. Native observation retained, no fabricated wall plate.'})
-                if q.area>1e-7 and width>=.0001 and not sliver:
-                    cleaned.append({**c,**profile_dict(q)})
-        e['components']=cleaned
-        if (e['source'].get('native_wall_closure') or e['source'].get('user_assumed_completion')
-                or e['source'].get('slab_joint_removed_volume_m3') or e['source'].get('structural_head_cut_volume_m3')):
-            # Use the same final numerical-cleanup profile as every wall. A
-            # tessellation must not bypass cleanup or become stale afterwards.
-            from .completion import regularized_profiles
-            manifold=[]
-            for c in cleaned:
-                for q,adjusted in regularized_profiles(Polygon(c['polygon'],c['holes'])):
-                    part={**c,**profile_dict(q),'source':deepcopy(c['source'])}
-                    if adjusted:part['source']['numeric_hole_clearance_m']=.0001
-                    try:part['mesh']=exact_prism_mesh(q,part['height'])
-                    except Exception:
-                        save('completion-mesh-failure.json',{'id':e['id'],'floor_id':e['floor_id'],'component':part})
-                        raise
-                    part['source']['representation']='final-profile prism tessellation; recorded 0.1 mm clearance only at non-manifold touching holes'
-                    manifold.append(part)
-            cleaned=manifold;e['components']=cleaned
-        if e['type']=='wall' and not cleaned:
-            e['source'].update(validation_status='unresolved',unresolved_plan_only=True,
-                unresolved_no_representation=True)
-            e['source']['unknowns']=e['source'].get('unknowns',[])+['No renderable wall solid after Boolean sliver cleanup; native traces retained.']
-        e['source']['numeric_cleanup']={'grid_m':1e-6,'simplification_m':.00001,'minimum_fragment_width_m':.0001,
-            'small_boolean_sliver_clearance_m':.001,
-            'wall_neck_opening_radius_m':.0001,
-            'reason':'Remove sub-OCCT tolerance Boolean slivers; source observation retained in strict stage.'}
-        for i,c in enumerate(e['components']):
-            c['id']=e['id']+'/component/'+str(i)
-            c['source'].update(validation_status='provisional',dimension_verified=False,parent_element_id=e['id'])
-        e['source']['applied_dimensions']={'component_height_ranges_m':sorted({round(c['height'],6) for c in e['components'] if c['height'] is not None}),
-                                          'storey_interval_m':specs[e['floor_id']].get('height_preview')}
+    normalize_components(elements,specs)
+    from .building_review import audit_building
+    building_review=audit_building(elements,list(specs.values()))
+    save('building-3d-review.json',building_review)
+    if building_review['summary']['maximum_slab_pair_volume_m3']>1e-5:
+        raise AssertionError('Whole-building slab duplicate remains')
+    if building_review['summary']['maximum_opaque_opening_residual_m3']>1e-5:
+        raise AssertionError('Facade obstructs a measured opening projection')
+    if building_review['summary']['facade_missing_volume_m3']>.001:
+        raise AssertionError('Facade gap outside local measured opening spans')
+    if building_review['summary']['parapet_outside_boundary_volume_m3']>1e-5:
+        raise AssertionError('Parapet generated on an unassigned internal boundary')
     remnant_audit=[]
     current_by_id={e['id']:e for e in elements}
     legacy_by_id={e['id']:e for e in legacy['elements']}
@@ -505,13 +525,16 @@ def build(sync_web=False,reviews_path=None):
             'height_assignment_status':e['source']['property_status']['height'],'direction_verified':False})
 
     model=Model.model_validate({'id':preview['id'],'name':'에너지융복합종합지원센터 · 통합 3D 검토 Draft',
-        'revision':9,'floors':preview['floors'],'elements':elements,'places':legacy['places'],'links':[],
+        'revision':11,'floors':preview['floors'],'elements':elements,'places':legacy['places'],'links':[],
         'warnings':['Coordination Draft: 검증 완료 설계 BIM이 아닙니다. 부재와 속성별 가정을 확인하세요.',
                     '구조 보의 원본 외곽과 개별 SL 레벨은 미확정입니다. 추가 작은보와 일부 보 배치는 사용자가 허용한 추정 형상입니다.',
                     '슬래브 패널 경계, 벽체 보완, 옥탑 코어 지붕, PIT와 파라펫은 주변 형상에 맞춘 추정이며 설계 확인이 필요합니다.',
                     '상부 지붕은 자체 도면의 경계 후보이며 평지붕 레벨·두께는 가정입니다.',
+                    '외장과 외벽 BIPV는 현장 사진 기반 표현입니다. 외장 깊이와 패널 치수·배치는 추정이며 준공 실측 모델이 아닙니다.',
                     '실·복도 경계 미분류 영역이 남아 전체 내부 공간 분할과 실제 BF 통행 검증은 미완료입니다.'],
-        'provenance':{**preview['provenance'],'modelling_version':12,'export_status':'coordination_draft',
+        'provenance':{**preview['provenance'],'modelling_version':14,'export_status':'coordination_draft',
+             'photo_exterior':photo_report,
+             'building_3d_review':building_review['summary'],
              'assumed_completion':{'authorization':completion_report['authorization'],'design_verified':False,
                  'elements':sum(bool(e['source'].get('user_assumed_completion')) for e in elements),
                  'report':'completion-validation.json','route_calculated':False},
@@ -576,6 +599,7 @@ def build(sync_web=False,reviews_path=None):
     save('wall-recovery-validation.json',{'recovered':wall_recovery,'design_verified':False})
     save('structural-authoring-validation.json',structural_report)
     save('completion-validation.json',completion_report)
+    save('photo-exterior-validation.json',photo_report)
     summary={'status':'coordination_draft','elements':len(elements),'components':sum(len(e['components']) for e in elements),
         'types':dict(Counter(e['type'] for e in elements)),'floors':dict(Counter(e['floor_id'] for e in elements)),
         'statuses':dict(Counter(e['source']['validation_status'] for e in elements)),'verified_solids':verified_count,

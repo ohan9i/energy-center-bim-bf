@@ -9,6 +9,7 @@ import type { RouteResult } from "./navigation";
 import { renderPieces, floorOffset, createRenderContext } from "./bimGeometry";
 import { pieceGeometry, sectionCap, wallEdges } from "./architecturalGeometry";
 import { interiorView, interiorCeilingFloor } from "./interiorView";
+import { exteriorMaterials } from './exteriorMaterials';
 import {spatialData,approved,physicalBlockers,difference,modelFingerprint} from './spatial';
 import {buildSpatialNetwork} from './spatialRoute';
 import {
@@ -442,6 +443,7 @@ export default function Viewer({
         const material = piece.material ?? String(e.source.material ?? ""),
           glass = material === "glazing",
           metal = material === "metal";
+        const photoMaterial=exteriorMaterials[material];
         const lower = ["b1", "f1", "f2"].includes(e.floor_id),
           exterior =
             e.source.envelope_role === "exterior_candidate" ||
@@ -458,6 +460,7 @@ export default function Viewer({
         const color = evidenceMode === "highlight"
           ? e.source.validation_status === "verified" ? 0x36aa80 : e.source.validation_status === "unresolved" ? 0xcd6666 : 0xeaa335 : marker
           ? 0xd29c47
+          : photoMaterial ? photoMaterial.color
           : metal
             ? 0x485e69
             : glass
@@ -482,14 +485,14 @@ export default function Viewer({
           portal;
         const parameters = {
           color,
-          roughness: glass
+          roughness: photoMaterial ? photoMaterial.roughness : glass
             ? 0.08
             : metal
               ? 0.28
               : material === "finish"
                 ? 0.65
                 : 0.88,
-          metalness: metal ? 0.85 : 0,
+          metalness: photoMaterial ? photoMaterial.metalness : metal ? 0.85 : 0,
           side: T.DoubleSide,
           transparent,
           opacity: envelope
@@ -733,13 +736,35 @@ export default function Viewer({
         if (box.isEmpty()) return;
         const s = Math.max(box.getSize(new T.Vector3()).length(), 1);
         const element = model.elements.find((e) => e.id === id),
-          axis = element?.source.window_plan_axis as
+          windowAxis = element?.source.window_plan_axis as
             | { direction: XY }
             | undefined;
-        const direction = axis
-          ? new T.Vector3(-axis.direction[1], 0.4, axis.direction[0])
-          : new T.Vector3(0.65, 0.55, 0.85);
+        const hinge=element?.source.hinge as XY|undefined,
+          leafEnd=element?.source.leaf_end as XY|undefined;
+        const doorAxis=element?.type==='door'&&hinge&&leafEnd
+          ? new T.Vector2(leafEnd[0]-hinge[0],leafEnd[1]-hinge[1]).normalize()
+          : undefined;
+        const axis=windowAxis?.direction??(doorAxis?[doorAxis.x,doorAxis.y]:undefined);
         controls.target.copy(box.getCenter(new T.Vector3()));
+        let direction=new T.Vector3(0.65,0.55,0.85);
+        if(axis){
+          const candidates=[new T.Vector3(-axis[1],.15,axis[0]),new T.Vector3(axis[1],.15,-axis[0])];
+          const ray=new T.Raycaster();
+          const ranked=candidates.map(d=>{
+            d.normalize();ray.set(controls.target,d);ray.near=.05;ray.far=s*1.6;
+            const blockers=new Set(ray.intersectObjects(selectable,false).filter(hit=>{
+              if(hit.object.userData.id===id)return false;
+              const material=(hit.object as T.Mesh).material;
+              const materials=Array.isArray(material)?material:[material];
+              return materials.some(m=>m&&(!m.transparent||m.opacity>.8));
+            }).map(hit=>hit.object.userData.id??hit.object.uuid));
+            // Inspect both sides of the opening. Fixed diagonal camera placement
+            // could land inside a neighbouring wall and hide the selected door.
+            const position=controls.target.clone().addScaledVector(d,s*1.6);
+            return {d,blockers:blockers.size,movement:position.distanceToSquared(camera.position)};
+          }).sort((a,b)=>a.blockers-b.blockers||a.movement-b.movement);
+          direction=ranked[0].d;
+        }
         camera.position
           .copy(controls.target)
           .add(direction.normalize().multiplyScalar(s * 1.6));

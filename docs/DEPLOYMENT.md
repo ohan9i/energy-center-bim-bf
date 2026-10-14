@@ -2,7 +2,7 @@
 
 홈페이지: https://ohan9i.github.io/energy-center-bim-bf/
 
-2026-10-12 최신 모델은 modelling_version 12 / revision 9이며, 사용자가 허용한 추정 보완을 포함합니다. [BIM 추정 보완과 접합 개선](BIM_ASSUMED_COMPLETION_2026-10-12.md)에 실제 수정·전후 측정·검증 한계를 기록합니다. 아래 revision 8 문구 정리 기록은 당시 배포 이력입니다.
+2026-10-14~15 최신 모델은 modelling_version 14 / revision 11입니다. [건물 전체 3D 정합성 개선](BIM_3D_IMPROVEMENT_2026-10-14.md)에서 외피 개구부, 슬래브 접합, 지붕 파라펫 경계와 선택 확대 시점을 수정했습니다. [사진 기반 외관](BIM_PHOTO_EXTERIOR_2026-10-12.md)은 유지하며 옥상·외부 대지 PV와 해당 캐노피·지지 구조는 제외합니다. 외장 깊이·부재 배정은 추정이며 준공 실측 모델이 아닙니다. 아래 이전 배포 기록은 당시 이력입니다.
 
 커밋 `8bd8bfa`의 [Pages 배포 38206566298](https://github.com/ohan9i/energy-center-bim-bf/actions/runs/38206566298)이 성공했습니다. 공개 모델 JSON과 두 IFC의 SHA-256이 해당 Git 모델과 일치합니다. 공개 Chrome에서도 새 모델과 제목, 추정 보 속성, 작은 도구 바, 도움말과 공간 검토, 390/320px 모바일 화면을 확인했으며 실행·HTTP 오류는 0건입니다. 기록은 `cad_output/precision-rebuild/coordination-v2/completion-deployment.json`, `browser-current/branding-results.json`에 보존합니다.
 
@@ -16,11 +16,11 @@
 
 ## 홈페이지에서 할 수 있는 일
 
-기본 주소에서 최신 통합 3D Coordination Draft를 엽니다. 지하층·지상층·옥상·옥탑과 PIT를 3D/평면, 층 분리, 단면 및 실내 시점으로 검토할 수 있습니다. 표시 설정과 속성에서 도면 기반 형상과 추정 보완 상태를 확인합니다. 검증 완료 입체 부재는 0개이며, 이 모델은 설계 검증 완료나 BF 인증 결과가 아닙니다. 최신 revision 9의 전 층 보완은 [추정 보완 결과](BIM_ASSUMED_COMPLETION_2026-10-12.md), 앞선 구조 보와 출입문 수정은 [revision 8](BIM_STRUCTURAL_AUTHORING_2026-10-12.md)과 [revision 7](BIM_WHOLE_BUILDING_PRECISION_2026-10-12.md)을 참고하세요.
+기본 주소에서 최신 통합 3D Coordination Draft를 엽니다. 지하층·지상층·옥상·옥탑과 PIT를 3D/평면, 층 분리, 단면 및 실내 시점으로 검토할 수 있습니다. 표시 설정과 속성에서 도면 기반 형상과 추정 보완 상태를 확인합니다. 검증 완료 입체 부재는 0개이며, 이 모델은 설계 검증 완료나 BF 인증 결과가 아닙니다. revision 10의 외관 보완은 [현장 사진 반영 결과](BIM_PHOTO_EXTERIOR_2026-10-12.md), revision 9의 전 층 보완은 [추정 보완 결과](BIM_ASSUMED_COMPLETION_2026-10-12.md), 앞선 구조 보와 출입문 수정은 [revision 8](BIM_STRUCTURAL_AUTHORING_2026-10-12.md)과 [revision 7](BIM_WHOLE_BUILDING_PRECISION_2026-10-12.md)을 참고하세요.
 
 기본 제공 건축물은 최신 통합 3D 모델 하나입니다. 개선 전 v7 비교 모델·비교 버튼, 공간이음 교육관 예제와 이전 도면 기반 BIM은 공개 파일·자동 로딩에서 제거했습니다. 브라우저에 남아 있는 삭제 대상 모델의 저장본도 접속 시 정리하며 다시 불러오거나 저장할 수 없습니다. 별도로 불러온 사용자 모델은 유지합니다. 실제 도면 모델은 확인 전 상태이며 미확인 바닥이나 시설을 통과하는 경로를 만들지 않습니다.
 
-GitHub Pages는 정적 홈페이지이므로 Python·ODA를 사용하는 DWG 업로드 및 IFC 생성은 로컬 앱에서 실행합니다. 공개 사이트의 이용자 모드는 JSON 불러오기, 브라우저 경로 계산 및 현재 모델의 Draft/Verified IFC 다운로드를 지원합니다. 현재 v12 / revision 9 모델은 부재 2,998개·입체 구성요소 6,926개이며 검증 기준을 충족한 입체는 0개입니다.
+GitHub Pages는 정적 홈페이지이므로 Python·ODA를 사용하는 DWG 업로드 및 IFC 생성은 로컬 앱에서 실행합니다. 공개 사이트의 이용자 모드는 JSON 불러오기, 브라우저 경로 계산 및 현재 모델의 Draft/Verified IFC 다운로드를 지원합니다. 현재 v13 / revision 10 모델은 부재 3,599개·입체 구성요소 8,040개이며 검증 기준을 충족한 입체는 0개입니다. 옥상·외부 대지의 PV 패널과 해당 캐노피·지지 구조는 제외했습니다.
 
 ## 공개 범위
 

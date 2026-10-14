@@ -7,7 +7,7 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
  fs.mkdirSync(out,{recursive:true});
  try{
   const model=JSON.parse(fs.readFileSync('web/public/models/precision-rebuild.json','utf8'));
-  assert.equal(model.provenance.modelling_version,12);
+  assert.equal(model.provenance.modelling_version,14);
   const base='/energy-center-bim-bf/';
   let origin=process.env.BIM_QA_URL;
   if(!origin){server=http.createServer((req,res)=>{

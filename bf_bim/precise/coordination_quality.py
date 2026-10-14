@@ -177,6 +177,11 @@ def attach_evidence(elements, specs, missing_by_file, reviews=None):
                 src['property_evidence'][key]={'status':'provisional','references':refs,
                     'reason':'User-authorised assumed completion; CAD IDs are context references, not approval of this geometry.'}
             src['property_evidence']['base']['status']='provisional'
+        if src.get('photo_reference'):
+            photo_ref=src['photo_reference']
+            src['property_evidence']['appearance']={'status':'photo_observed','references':[photo_ref],
+                'reason':'Photo establishes appearance, not measured geometry or material product.'}
+            src['property_evidence']['position']['reason']='CAD context registration with assumed photo layout; no site survey.'
         if src.get('plan_schedule_links'):
             src['property_evidence']['member_mark']={'status':'candidate','references':src['plan_schedule_links'],
                 'reason':'Registered plan callout candidates; unresolved leader/member and schedule assignment'}

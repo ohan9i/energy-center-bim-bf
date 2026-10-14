@@ -334,16 +334,7 @@ def complete_terminals(elements,specs):
         src['roof_source_floor']='phroof';src['context_source_floor']='roof'
         e=new_element('phroof','roof',cap,src,'옥탑 코어 추정 지붕',parts(cap,'structural_slab',.15,-.18)+parts(cap,'roof_finish',.03,-.03,material='roof'))
         elements.append(e);report.append({'id':e['id'],'kind':'roof_core_cap','area_m2':cap.area,'top_m':specs['phroof']['elevation']})
-    roofs=[e for e in roof_es if e['type']=='roof' and e['components']]
-    if roofs:
-        p=unary_union([profile(e) for e in roofs]);ring=p.difference(p.buffer(-.15,join_style=2))
-        blockers=unary_union([profile(e) for e in roof_es if e['type'] in ('wall','column','door','window','stair','elevator')])
-        ring=ring.difference(blockers.buffer(.01))
-        for q in polygon_parts(ring):
-            if q.area<.03 or q.buffer(-.005).is_empty:continue
-            src=assumed_source(roofs[0]['source'],'Assumed roof edge parapet; no railing/detail specification assigned.',parapet_height=.9,parapet_thickness=.15)
-            e=new_element('roof','wall',q,src,'옥상 추정 파라펫',parts(q,'assumed_parapet',.9))
-            elements.append(e);report.append({'id':e['id'],'kind':'parapet','area_m2':q.area})
+    report.extend(complete_parapets(elements,specs))
     for shaft in [e for e in elements if e['floor_id']=='b1' and e['type']=='elevator']:
         p=profile(shaft)
         lining_profiles=shaft['source'].get('assumed_pit_lining_profiles')
@@ -353,6 +344,36 @@ def complete_terminals(elements,specs):
         cs=parts(shell,'assumed_pit_lining',rise)+parts(p,'assumed_pit_base',.2,-.2)
         e=new_element('pit','elevator',p,src,'승강기 추정 PIT',cs)
         elements.append(e);report.append({'id':e['id'],'kind':'pit','depth_m':rise,'area_m2':p.area})
+    return report
+
+
+def complete_parapets(elements,specs):
+    """Connect the external roof/courtyard edge; internal holes stay unassigned."""
+    from .envelope import parapet_band
+    roofs=[e for e in elements if e['floor_id']=='roof' and e['type']=='roof' and e['components']]
+    if not roofs:return []
+    ring=parapet_band(unary_union([profile(e) for e in roofs]),COURTYARD)
+    z=specs['roof']['elevation'];height=.9
+    # Full parent footprints of stairs/shafts are voids, not opaque obstacles.
+    # A 10mm buffer around every parent formerly opened visible parapet seams.
+    blockers=[]
+    for e in elements:
+        if e['type'] not in ('wall','column','elevator'):continue
+        for c in e['components']:
+            a=specs[e['floor_id']]['elevation']+c['z_offset']
+            if a<=z+1e-7 and a+c['height']>=z+height-1e-7:
+                blockers.append(profile(c))
+    ring=ring.difference(unary_union(blockers))
+    report=[]
+    for q in polygon_parts(ring):
+        cs=parts(q,'assumed_parapet',height)
+        if not cs:continue
+        src=assumed_source(roofs[0]['source'],
+            'Assumed parapet on exterior roof/courtyard boundary only; mosaic holes are not parapet design lines.',
+            parapet_height=height,parapet_thickness=.15)
+        src['parapet_boundary_policy']='exterior_and_explicit_courtyard'
+        e=new_element('roof','wall',q,src,'옥상 추정 파라펫',cs)
+        elements.append(e);report.append({'id':e['id'],'kind':'parapet','area_m2':q.area})
     return report
 
 
@@ -409,11 +430,12 @@ def complete_portal_hosts(elements,specs):
     return report
 
 
-def trim_solid_junctions(elements,specs):
+def trim_solid_junctions(elements,specs, selected_ids=None):
     """Give slabs priority at actual 3D intersections; do not alter plan walls."""
     slabs=[(e,c,profile(c)) for e in elements if e['type'] in ('floor','roof') for c in e['components']]
     tree=STRtree([p for _,_,p in slabs]);report=[]
     for e in elements:
+        if selected_ids is not None and e['id'] not in selected_ids:continue
         if e['type'] not in ('wall','column','beam','elevator'):continue
         if e['floor_id']=='pit':continue
         base=specs[e['floor_id']]['elevation'];result=[];volume=0.
