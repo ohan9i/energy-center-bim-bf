@@ -6,7 +6,7 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
  let server,browser;const screens=[],errors=[],badRequests=[];fs.mkdirSync(out,{recursive:true});
  try{
   const model=JSON.parse(fs.readFileSync(process.env.BIM_QA_MODEL_PATH||'web/public/models/precision-rebuild.json','utf8'));
-  assert.equal(model.revision,11);
+  assert.equal(model.revision,12);
   assert(model.elements.every(e=>e.components.every(c=>!/^photo_(?:rooftop_pv|outdoor_pv|parking_|pv_support)/.test(c.role))));
   const base='/energy-center-bim-bf/';let origin=process.env.BIM_QA_URL;
   if(!origin){server=http.createServer((req,res)=>{
@@ -25,7 +25,7 @@ const root=path.resolve('web/dist'),out=path.resolve('cad_output/precision-rebui
   async function screen(name){await ready();const heading=page.getByRole('heading',{level:1});if(await heading.isVisible())await heading.click();await page.screenshot({path:path.join(out,name+'.png')});screens.push({name,...await canvas.evaluate(c=>({...c.dataset}))});console.log('screen',name);}
   async function tools(name){const b=page.getByRole('button',{name,exact:true});if(await b.getAttribute('aria-expanded')!=='true')await b.click();}
   await page.goto(origin,{waitUntil:'domcontentloaded'});await ready();
-  assert.equal(await canvas.getAttribute('data-modelling-version'),'14');assert.equal(await page.locator('.fallback').count(),0);
+  assert.equal(await canvas.getAttribute('data-modelling-version'),'15');assert.equal(await page.locator('.fallback').count(),0);
   await screen('exterior');
   for(const view of ['front','right','top']){await tools('표시 설정');await page.getByLabel('뷰 방향',{exact:true}).selectOption(view);await screen('view-'+view);}
   await tools('표시 설정');await page.getByLabel('뷰 방향',{exact:true}).selectOption('building');

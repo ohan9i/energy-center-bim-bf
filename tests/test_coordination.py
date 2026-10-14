@@ -37,7 +37,11 @@ def test_generated_coordination_honours_evidence_and_openings():
     assert {'wall','window','door','floor','roof','stair','elevator'}<=set(e.type for e in m.elements)
     for e in m.elements:
         assert e.source['validation_status'] in ['verified','drawing_based','schedule_matched','provisional','unresolved']
-        assert e.source['cad_ids'] and e.source['source_sha256']
+        if e.source.get('ceiling_completion'):
+            # Ceiling closures have context references, not fabricated CAD IDs.
+            assert not e.source['cad_ids'] and e.source['context_slab_ids'] and e.source['context_room_ids']
+        else:assert e.source['cad_ids']
+        assert e.source['source_sha256']
         assert e.height is None
         if e.type=='roof':assert e.source['roof_source_floor']==e.floor_id
         if e.type=='stair' and e.floor_id=='roof':

@@ -1,4 +1,4 @@
-import type {Model, XY} from './model';
+import type {Model, Element, XY} from './model';
 import {raw,inside,edges,pointSegment,bounds} from './geometry';
 import {planArea} from './bimGeometry';
 
@@ -11,6 +11,16 @@ export function interiorCeilingFloor(model:Model, floor:string):string|null {
     e.floor_id===f.id&&!e.excluded&&!e.source.unresolved_plan_only&&
     ['floor','roof'].includes(e.type)&&e.components.some(c=>c.height!==null)))
     .sort((a,b)=>a.elevation-b.elevation)[0]?.id??null;
+}
+
+// Slabs and downstand beams belong to the upper storey in the BIM model.
+// Include only those members in a single-storey ceiling review.
+export function ceilingElements(model:Model, floor:string):Element[] {
+  const upper=interiorCeilingFloor(model,floor);
+  if(!upper)return [];
+  return model.elements.filter(e=>e.floor_id===upper&&!e.excluded&&
+    !e.source.unresolved_plan_only&&['floor','roof','beam'].includes(e.type)&&
+    e.components.some(c=>c.height!==null));
 }
 
 export function interiorView(model:Model, floor:string, selected='') {

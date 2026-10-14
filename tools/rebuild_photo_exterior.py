@@ -60,12 +60,14 @@ def build(baseline, sync_web=False, preview_only=False):
     elements=[deepcopy(e) for e in data['elements'] if e['id'] not in removed_parapets]
     parapets=complete_parapets(elements,specs)
     report=apply_photo_exterior(elements,specs)
+    from bf_bim.precise.ceiling_completion import complete_ceilings
+    ceiling_report=complete_ceilings(elements,list(specs.values()))
     report['slab_junctions']=trim_solid_junctions(elements,specs,
         selected_ids={e['id'] for e in elements if e['source'].get('photo_reference')})
     # The baseline solids already passed numerical cleanup and IFC validation.
     # Preserve their vertex ordering too; normalise only newly authored solids.
     authored={r['id'] for r in parapets}
-    normalize_components([e for e in elements if e['source'].get('photo_reference') or e['id'] in authored],specs)
+    normalize_components([e for e in elements if e['source'].get('photo_reference') or e['id'] in authored or e['source'].get('ceiling_completion')],specs)
     building_review=audit_building(elements,list(specs.values()))
     assert building_review['summary']['maximum_slab_pair_volume_m3']<1e-5
     assert building_review['summary']['maximum_opaque_opening_residual_m3']<1e-5
@@ -84,9 +86,11 @@ def build(baseline, sync_web=False, preview_only=False):
     decisions=attach_evidence(elements,list(specs.values()),missing)
     relationships=audit_relationships(elements,list(specs.values()),COURTYARD)
     junctions=audit_navigation_junctions(elements,list(specs.values()))
-    data.update(revision=11,elements=elements)
+    data.update(revision=12,elements=elements)
     data['warnings'].append('외장과 외벽 BIPV는 현장 사진 기반 표현입니다. 외장 깊이와 패널 치수·배치는 추정이며 준공 실측 모델이 아닙니다.')
-    data['provenance'].update(modelling_version=14,photo_exterior=report,building_3d_review=building_review['summary'],junction_audit=junctions['summary'],verified_solids=sum(d['eligible'] for d in decisions))
+    data['provenance'].update(modelling_version=15,photo_exterior=report,building_3d_review=building_review['summary'],
+        ceiling_completion={'version':1,'design_verified':False,'floors':ceiling_report},
+        junction_audit=junctions['summary'],verified_solids=sum(d['eligible'] for d in decisions))
     data['provenance']['assumed_completion']['elements']=sum(bool(e['source'].get('user_assumed_completion')) for e in elements)
     model=Model.model_validate(data)
     overrides=SPATIAL_OUTPUT/'overrides.json'
@@ -102,7 +106,7 @@ def build(baseline, sync_web=False, preview_only=False):
     checks={**prior_checks,**{key:validate_file(m,OUT/name) for key,m,name in [('draft_ifc',model,'energy-center-Coordination-Draft.ifc'),('verified_ifc',verified,'energy-center-Verified.ifc')]}}
     checks.update(architectural_relationships=relationships,navigation_junctions=junctions,certified_design=False,
         boolean_remnant_review=remnant_review,
-        exterior_only_preservation={'baseline_sha256':sha256(baseline),'original_elements':len(data['elements'])-len(report['added'])-len(parapets),
+        exterior_only_preservation={'baseline_sha256':sha256(baseline),'original_elements':len(data['elements'])-len(report['added'])-len(parapets)-sum(bool(e['source'].get('ceiling_completion')) for e in elements),
             'changed_geometry':changed,'replaced_assumed_parapets':len(removed_parapets)})
     save('preview.json',model.model_dump(mode='json'));save('verified-model.json',verified.model_dump(mode='json'))
     save('validation.json',checks);save('photo-exterior-validation.json',report)

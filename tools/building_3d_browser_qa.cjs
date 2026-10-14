@@ -8,7 +8,7 @@ const root=path.resolve('web/dist'),base='/energy-center-bim-bf/';
  let server,browser;const screens=[],errors=[],badRequests=[];fs.mkdirSync(out,{recursive:true});
  try{
   const model=JSON.parse(fs.readFileSync('web/public/models/precision-rebuild.json','utf8'));
-  if(!before){assert.equal(model.revision,11);assert.equal(model.provenance.modelling_version,14);}
+  if(!before){assert.equal(model.revision,12);assert.equal(model.provenance.modelling_version,15);}
   server=http.createServer((req,res)=>{
    const pathname=new URL(req.url,'http://localhost').pathname;
    if(!pathname.startsWith(base)){res.writeHead(404);res.end();return;}
@@ -40,6 +40,13 @@ const root=path.resolve('web/dist'),base='/energy-center-bim-bf/';
   for(const fid of ['f1','f3','roof']){
    await page.getByLabel('표시 층').selectOption(fid);await panel('표시 설정');
    await page.getByLabel('뷰 방향',{exact:true}).selectOption('building');await screen('floor-'+fid);
+  }
+  for(const fid of ['f1','f2']){
+   await page.getByLabel('표시 층').selectOption(fid);await panel('표시 설정');
+   await page.getByLabel('천장 구조 표시',{exact:true}).check();
+   await page.waitForFunction(()=>Number(document.querySelector('.viewer canvas')?.dataset.interiorCeilingElements)>0);
+   await screen('ceiling-'+fid);
+   await panel('표시 설정');await page.getByLabel('천장 구조 표시',{exact:true}).uncheck();
   }
   await page.getByLabel('표시 층').selectOption('all');
   await panel('단면과 층 분리');await page.getByLabel('단면 방향',{exact:true}).selectOption('x');
